@@ -31,9 +31,9 @@ Commercial use is strictly prohibited without a separate agreement. Commercial u
 - Inclusion in paid software products, mobile applications, or subscription services.
 - Internal use by for-profit corporations or insurance entities.
 
-If you are interested in using LumosJorlin for professional clinical documentation or commercial applications, please reach out to discuss licensing options.
+If you are interested in using PsyDraft for professional clinical documentation or commercial applications, please reach out to discuss licensing options.
 
 Contact: For commercial inquiries, please open a GitHub Issue with the label "Licensing" or contact the author via the GitHub profile.
 
 ---
-Disclaimer: This tool is intended as a clinical aid for trained professionals and does not replace professional clinical judgment or the need for a comprehensive diagnostic interview.
+This tool is intended as a clinical aid for trained professionals and does not replace professional clinical judgment or the need for a comprehensive diagnostic interview.
