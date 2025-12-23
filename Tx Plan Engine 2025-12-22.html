@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Psychotherapy Treatment Plan Generator</title>
+<style>
+    /* ADDED FIX: Global Box Sizing for clean layout. This is crucial for fixing the right/bottom gap issues when using 100vw/100vh. */
+    html {
+        box-sizing: border-box;
+    }
+    *, *:before, *:after {
+        box-sizing: inherit;
+    }
+    
+    /* 0. DEFINE COLOR VARIABLES (Default Light Theme from the 'Good' Stylesheet) */
+    :root {
+        --color-bg-primary: #f4f4f4;
+        --color-bg-secondary: #ffffff;
+        --color-text-primary: #333;
+        --color-text-secondary: #555;
+        --color-accent-primary: #333;
+        --color-accent-secondary: #555;
+        --color-border-default: #ccc;
+        --color-border-light: #ddd;
+        --color-bg-output: #e9e9e9;
+        --color-bg-protective: #f9f9f9;
+        --color-border-protective: #f0f0f0;
+        --color-shadow: rgba(0, 0, 0, 0.1);
+        --pane-gap: 1.0rem;
+    }
+
+    /* --- Base Styles --- */
+    body {
+        font-family: 'Inter', Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: var(--color-bg-primary);
+        min-height: 100vh;
+        color: var(--color-text-primary);
+        font-size: 1.0em;
+        transition: background-color 0.3s, color 0.3s;
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+        overflow: hidden;
+        gap: 0;
+    }
+
+    /* --- Pane Styles --- */
+    .pane, #left-pane, #middle-pane, #right-pane {
+        /* Default padding */
+        padding: 1.0rem; 
+        /* FIX: Added extra padding to the bottom of the pane content area to guarantee bottom gap */
+        padding-bottom: 1.5rem; 
+
+        border-radius: 0.25rem;
+        box-shadow: 0 1px 3px 0 var(--color-shadow);
+        background-color: var(--color-bg-secondary);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        transition: background-color 0.3s, color 0.3s;
+        box-sizing: border-box;
+        overflow-y: auto;
+        flex: 1 1 0;
+        min-width: 0;
+        border-right: none;
+    }
+
+    /* Output Pane specific styling */
+    #right-pane {
+        background-color: var(--color-bg-secondary);
+        overflow-y: hidden;
+    }
+    
+    /* ================================================= */
+    /* --- Desktop/Wide Screen Layout (3-Pane) --- */
+    /* ================================================= */
+    @media (min-width: 1200px) {
+        body {
+            /* FIX: This applies the padding to the right and bottom edge of the screen */
+            padding: var(--pane-gap); 
+            /* This adds the gap between the panes */
+            gap: var(--pane-gap); 
+        }
+        
+        .pane, #left-pane, #middle-pane, #right-pane {
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 3px 0 var(--color-shadow);
+        }
+        
+        #right-pane {
+             overflow-y: hidden;
+        }
+    }
+
+
+    /* ================================================= */
+    /* --- Mobile/Narrow Screen Layout (Stacked) --- */
+    /* ================================================= */
+    @media (max-width: 1199px) {
+        body {
+            flex-direction: column;
+            height: auto;
+            min-height: 100vh;
+            overflow-y: auto;
+            padding: 0;
+            gap: 0; 
+        }
+
+        .pane, #left-pane, #middle-pane, #right-pane {
+            flex: auto;
+            border-right: none;
+            border-bottom: 1px solid var(--color-border-light);
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 3px 0 var(--color-shadow);
+            margin: 0.5rem 1rem;
+            overflow-y: auto; 
+        }
+
+        #right-pane {
+             margin-bottom: 1rem;
+             overflow-y: auto;
+        }
+    }
+
+
+    /* --- Typography and Headings --- */
+    h2 {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--color-text-primary);
+        border-bottom: 2px solid var(--color-accent-primary);
+        padding-bottom: 0.75rem;
+        margin-top: 0;
+        margin-bottom: 1.5rem;
+    }
+
+    h3 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: var(--color-text-secondary);
+        border-bottom: 1px solid var(--color-border-light);
+        padding-bottom: 0.4rem;
+        margin-top: 1rem;
+        margin-bottom: 0.75rem;
+    }
+
+    hr {
+        border: 0;
+        height: 1px;
+        background: var(--color-border-light);
+        margin: 1rem 0;
+    }
+
+    label {
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+        display: block;
+        color: var(--color-text-primary);
+        font-size: 1em;
+    }
+
+    .input-group {
+        margin-bottom: 1rem;
+        display: flex;
+        flex-direction: column;
+    }
+
+    /* --- Text Entry Styling --- */
+    input[type="text"], input[type="number"], select, textarea {
+        width: 100%;
+        padding: 0.6rem;
+        margin-bottom: 1rem;
+        border: 1px solid var(--color-border-default);
+        border-radius: 0.4rem;
+        box-sizing: border-box;
+        font-size: 0.9em;
+        background-color: var(--color-bg-primary);
+        color: var(--color-text-primary);
+        transition: background-color 0.3s, color 0.3s, border-color 0.2s, box-shadow 0.2s;
+        font-family: inherit;
+    }
+
+    /* Focus effect */
+    input[type="text"]:focus, select:focus, textarea:focus {
+        border-color: var(--color-accent-primary);
+        box-shadow: 0 0 5px rgba(51, 51, 51, 0.2);
+        outline: none;
+    }
+
+    textarea {
+        resize: vertical;
+        min-height: 80px;
+    }
+
+    /* Styling for auto-populated (read-only) fields */
+    input[readonly] {
+        background-color: var(--color-bg-output);
+        color: var(--color-text-secondary);
+        border: 1px dashed var(--color-border-default);
+    }
+
+    /* --- Checkbox Styling --- */
+    .checkbox-group {
+        margin-bottom: 15px;
+        border: 1px solid var(--color-border-protective);
+        border-radius: 4px;
+        padding: 10px;
+        background-color: var(--color-bg-protective);
+    }
+
+    .checkbox-list {
+        display: flex;
+        flex-wrap: wrap;
+        padding-top: 5px;
+        gap: 15px;
+    }
+
+    .checkbox-group label {
+        font-weight: normal;
+        display: inline;
+        margin-right: 0;
+        white-space: nowrap;
+        color: var(--color-text-primary);
+        font-size: 0.9em;
+    }
+
+    .section-header {
+        font-weight: 700;
+        margin-top: 0;
+        margin-bottom: 5px;
+        border-bottom: 1px solid var(--color-border-light);
+        padding-bottom: 5px;
+        color: var(--color-text-secondary);
+        font-size: 0.95em;
+    }
+
+    /* --- Button Styling --- */
+    button {
+        background-color: var(--color-accent-secondary);
+        color: white;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        margin-top: 1rem;
+        width: 100%;
+        font-size: 1em;
+        font-weight: 600;
+        transition: background-color 0.2s;
+        font-family: inherit;
+        flex-shrink: 0;
+    }
+
+    button:hover {
+        background-color: var(--color-accent-primary);
+    }
+
+    /* --- Output Pane Styling --- */
+    #treatment-plan-output {
+        width: 100%;
+        flex-grow: 1;
+        overflow-y: auto;
+        min-height: 250px;
+        padding: 1rem;
+        box-sizing: border-box;
+        border: 1px solid var(--color-border-default);
+        border-radius: 0.5rem;
+        resize: vertical;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.5;
+        background-color: var(--color-bg-output);
+        color: var(--color-text-primary);
+        font-size: 0.9em;
+        transition: background-color 0.3s, color 0.3s;
+    }
+</style>
+</head>
+<body>
+
+    <div id="left-pane" class="pane">
+        <h2>Treatment Plan Settings</h2>
+        
+        <label for="plan-type-select">Plan Type (Affects Objective Boilerplate):</label>
+        <select id="plan-type-select" onchange="updateDiagnosisField(); generateTreatmentPlan();">
+            <option value="Depression">Depression</option>
+            <option value="Anxiety">Anxiety</option>
+            <option value="Depression and Anxiety">Depression and Anxiety</option>
+            <option value="Trauma">Trauma</option>
+            <option value="Bipolar II Disorder">Bipolar II</option>
+            <option value="Bipolar I Disorder">Bipolar I</option>
+            <option value="Borderline">Borderline</option>
+            <option value="Schizophrenia">Schizophrenia</option>
+        </select>
+        <hr>
+        <label for="pronoun-select">Pronoun/Gender Identity:</label>
+        <select id="pronoun-select" onchange="generateTreatmentPlan();">
+            <option value="Male">Male (he/him)</option>
+            <option value="Female">Female (she/her)</option>
+            <option value="Non-Binary">Non-Binary (they/them)</option>
+        </select>
+        <hr>
+        <label for="client-name">Client Name:</label>
+        <input type="text" id="client-name">
+
+        <label for="diagnosis">Diagnosis (DX(S)):</label>
+        <input type="text" id="diagnosis">
+
+        <label for="symptoms">Symptoms (SX(S)):</label>
+        <textarea id="symptoms"></textarea>
+        
+        <hr>
+        <h3>Coping Skills Baseline</h3>
+        <label for="coping-skills-baseline">Coping Skills Baseline (##):</label>
+        <input type="text" id="coping-skills-baseline">
+        
+        <label for="coping-skills-examples">Coping Skills Examples (Text Entry):</label>
+        <input type="text" id="coping-skills-examples" placeholder="e.g., grounding, deep breathing, or cognitive restructuring">
+
+        <label for="coping-skills-target">Coping Skills Target (&ge; ##):</label>
+        <input type="text" id="coping-skills-target">
+
+        <hr>
+        
+        <label for="goal-desc-detail">Goal Description Detail (Continues from "Client will..."):</label>
+        <textarea id="goal-desc-detail"></textarea>
+        
+        <h3>Discharge</h3>
+        <label for="discharge-subjective">Discharge Subjective:</label>
+        <textarea id="discharge-subjective"></textarea>
+        
+    </div>
+
+    <div id="middle-pane" class="pane">
+        <h2>SCREENERS & OCCUPATIONS</h2>
+        
+        <h3>Screener Scores: GAD-7</h3>
+        <label for="gad7-current-score">Current Score (##):</label>
+        <input type="text" id="gad7-current-score" oninput="updateScreenerDescriptors()">
+        <label for="gad7-current-desc">Current Desc ("DESCRIPTION") - AUTO:</label>
+        <input type="text" id="gad7-current-desc" readonly>
+        <label for="gad7-target-score">Target Score (&le; ##):</label>
+        <input type="text" id="gad7-target-score" oninput="updateScreenerDescriptors()">
+        <label for="gad7-target-desc">Target Desc ("DESCRIPTION") - AUTO:</label>
+        <input type="text" id="gad7-target-desc" readonly>
+
+        <hr>
+
+        <h3>Screener Scores: PHQ-9</h3>
+        <label for="phq9-current-score">Current Score (##):</label>
+        <input type="text" id="phq9-current-score" oninput="updateScreenerDescriptors()">
+        <label for="phq9-current-desc">Current Desc ("DESCRIPTION") - AUTO:</label>
+        <input type="text" id="phq9-current-desc" readonly>
+        <label for="phq9-target-score">Target Score (&le; ##):</label>
+        <input type="text" id="phq9-target-score" oninput="updateScreenerDescriptors()">
+        <label for="phq9-target-desc">Target Desc ("DESCRIPTION") - AUTO:</label>
+        <input type="text" id="phq9-target-desc" readonly>
+
+        <hr>
+
+        <h3>Screener Scores: PCL-5</h3>
+        <label for="pcl5-current-score">PCL-5 Current Score (##):</label>
+        <input type="text" id="pcl5-current-score">
+        <label for="pcl5-target-score">PCL-5 Target Score (&le; ##):</label>
+        <input type="text" id="pcl5-target-score">
+        
+        <hr>
+
+        <h3>OCCUPATIONAL DOMAINS CHECKLIST</h3>
+        <p>Check all occupations that are **negatively impacted** by symptoms. This selection determines the specific domain categories and examples listed in the treatment plan.</p>
+
+        <div id="checkboxes-container" class="checkbox-container-wrapper"></div>
+    </div>
+
+    <div id="right-pane" class="pane">
+        <h2>TREATMENT PLAN OUTPUT</h2>
+        <div id="treatment-plan-output"></div>
+        <button onclick="copyToClipboard()">COPY TO CLIPBOARD</button>
+        
+        <button onclick="exportData()" style="background-color: var(--color-accent-primary); margin-top: 10px;">EXPORT DATA (.json)</button>
+        <button onclick="document.getElementById('import-file').click()" style="background-color: var(--color-text-secondary); margin-top: 10px;">IMPORT DATA</button>
+        <input type="file" id="import-file" style="display:none" accept=".json" onchange="importData(event)">
+    </div>
+
+    <script>
+        // --- Core Functions ---
+        
+        function updateDiagnosisField() {
+            const planTypeSelect = document.getElementById('plan-type-select');
+            const diagnosisInput = document.getElementById('diagnosis');
+            
+            // Set the diagnosis field to the value of the dropdown
+            diagnosisInput.value = planTypeSelect.value;
+        }
+
+        // --- Utility Functions ---
+
+        // Helper function to correctly format lists with an 'and'
+        function formatList(items) {
+            if (items.length === 0) return "";
+            if (items.length === 1) return items[0];
+            return items.slice(0, -1).join(', ') + ', and ' + items.slice(-1);
+        }
+        
+        // Helper to format skill number and custom text for Objective Desc
+        function formatCopingSkillsLine(countStr, customText) {
+            const count = parseInt(countStr);
+            let skillNoun = "skill";
+            
+            // Pluralize if count is not 1 or text is present and implies multiple
+            if (count > 1 || (customText && !customText.includes('or'))) {
+                skillNoun = "skills";
+            }
+            
+            // If custom text is provided, use it in the parentheses
+            const skillsContent = customText ? `(${customText})` : "";
+            
+            return `${skillNoun} ${skillsContent}`;
+        }
+
+        // Ensure diagnosis text is lowercase for correct sentence flow
+        function formatDxForSentence(text) {
+            return text.toLowerCase();
+        }
+        
+        // Ensure diagnosis text is Capitalized for headers (PROBLEM, GOAL)
+        function formatDxForHeader(text) {
+            if (!text) return "";
+            // Special case for 'Bipolar I Disorder' and 'Bipolar II Disorder'
+            if (text.startsWith("Bipolar")) {
+                return text.replace(" Disorder", "").replace("-", " ");
+            }
+            return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+        }
+
+        // PRONOUN LOGIC FUNCTION
+        function getPronouns(selection) {
+            switch (selection) {
+                case 'Female':
+                    return { subjective: 'she', objective: 'her', possessive: 'her', reflexive: 'herself' };
+                case 'Male':
+                    return { subjective: 'he', objective: 'him', possessive: 'his', reflexive: 'himself' };
+                case 'Non-Binary':
+                    // Note: Using "their" for both possessive and objective in this context, 
+                    // and 'themselves' for reflexive is standard for singular 'they'.
+                    return { subjective: 'they', objective: 'them', possessive: 'their', reflexive: 'themselves' };
+                default:
+                    // Default to Male if no selection or an invalid one is made
+                    return { subjective: 'he', objective: 'him', possessive: 'his', reflexive: 'himself' };
+            }
+        }
+        // --- End Pronoun Logic ---
+
+
+        // --- Screener Logic ---
+        function getGad7Descriptor(score) {
+            score = parseInt(score);
+            if (isNaN(score) || score < 0) return "Invalid Score";
+            if (score <= 4) return "Minimal Anxiety";
+            if (score <= 9) return "Mild Anxiety";
+            if (score <= 14) return "Moderate Anxiety";
+            return "Severe Anxiety";
+        }
+
+        function getPhq9Descriptor(score) {
+            score = parseInt(score);
+            if (isNaN(score) || score < 0) return "Invalid Score";
+            if (score <= 4) return "Minimal Depression";
+            if (score <= 9) return "Mild Depression";
+            if (score <= 14) return "Moderate Depression";
+            if (score <= 19) return "Moderately Severe Depression";
+            return "Severe Depression";
+        }
+
+        function updateScreenerDescriptors() {
+            // Update GAD-7 Current
+            const gad7CurrentScore = document.getElementById('gad7-current-score').value;
+            const gad7CurrentDesc = getGad7Descriptor(gad7CurrentScore);
+            document.getElementById('gad7-current-desc').value = gad7CurrentDesc;
+            
+            // Update GAD-7 Target
+            const gad7TargetScore = document.getElementById('gad7-target-score').value;
+            const gad7TargetDesc = getGad7Descriptor(gad7TargetScore);
+            document.getElementById('gad7-target-desc').value = gad7TargetDesc;
+
+            // Update PHQ-9 Current
+            const phq9CurrentScore = document.getElementById('phq9-current-score').value;
+            const phq9CurrentDesc = getPhq9Descriptor(phq9CurrentScore);
+            document.getElementById('phq9-current-desc').value = phq9CurrentDesc;
+
+            // Update PHQ-9 Target
+            const phq9TargetScore = document.getElementById('phq9-target-score').value;
+            const phq9TargetDesc = getPhq9Descriptor(phq9TargetScore);
+            document.getElementById('phq9-target-desc').value = phq9TargetDesc;
+
+            // Rerun the treatment plan generation with updated descriptor values
+            generateTreatmentPlan();
+        }
+        // --- End Screener Logic ---
+
+
+        // Data structure for all occupations and domains
+        const domainData = {
+            ADLs: {
+                displayName: "ADLs",
+                occupationsList: "bathing, showering, toileting, toilet hygiene, dressing, undressing, eating, feeding, functional mobility, personal hygiene, grooming, and sexual activity",
+                occupations: [
+                    "bathing", "showering", "toileting", "toilet hygiene", "dressing", "undressing", "eating", "feeding",
+                    "functional mobility", "personal hygiene", "grooming", "sexual activity"
+                ]
+            },
+            IADLs: {
+                displayName: "IADLs",
+                occupationsList: "caring for others, caring for pets, child rearing, communication management, driving, community mobility, financial management, health management, home establishment, home maintenance, meal preparation, meal cleanup, religious expression, spiritual expression, safety maintenance, emergency response, and shopping",
+                occupations: [
+                    "caring for others", "caring for pets", "child rearing", "communication management", "driving",
+                    "community mobility", "financial management", "health management", "home establishment", "home maintenance",
+                    "meal preparation", "meal cleanup", "religious expression", "spiritual expression",
+                    "safety maintenance", "emergency response", "shopping"
+                ]
+            },
+            HEALTHMANAGEMENT: {
+                displayName: "health management",
+                occupationsList: "social and emotional health promotion, symptom and condition management, medication management, physical activity, nutrition management, and personal care device management",
+                occupations: [
+                    "social and emotional health promotion", "symptom and condition management", "medication management",
+                    "physical activity", "nutrition management", "personal care device management"
+                ]
+            },
+            RESTANDSLEEP: {
+                displayName: "rest and sleep",
+                occupationsList: "sleep preparation, and sleep participation",
+                occupations: [
+                    "sleep preparation", "sleep participation"
+                ]
+            },
+            EDUCATION: {
+                displayName: "education",
+                occupationsList: "formal education participation, informal education participation, and educational exploration",
+                occupations: [
+                    "formal education participation", "informal education participation", "educational exploration"
+                ]
+            },
+            WORK: {
+                displayName: "work",
+                occupationsList: "employment seeking, job acquisition, job performance, job maintenance, retirement preparation, retirement adjustment, volunteer exploration, and volunteer participation",
+                occupations: [
+                    "employment seeking", "job acquisition", "job performance", "job maintenance", "retirement preparation",
+                    "retirement adjustment", "volunteer exploration", "volunteer participation"
+                ]
+            },
+            PLAY: {
+                displayName: "play",
+                occupationsList: "play exploration and play participation",
+                occupations: [
+                    "play exploration", "play participation"
+                ]
+            },
+            LEISURE: {
+                displayName: "leisure",
+                occupationsList: "leisure exploration and leisure participation",
+                occupations: [
+                    "leisure exploration", "leisure participation"
+                ]
+            },
+            SOCIALPARTICIPATION: {
+                displayName: "social participation",
+                occupationsList: "community participation, family participation, friendship participation, intimate relationship participation, and peer group participation",
+                occupations: [
+                    "community participation", "family participation", "friendship participation", "intimate relationship participation", "peer group participation"
+                ]
+            }
+        };
+
+       // --- EXPANDED BOILERPLATE FOR OBJECTIVE DESCRIPTION (NO MARKDOWN) ---
+        const objectiveBoilerplate = {
+            // REVISED: Focus on insight, activation, and core beliefs.
+            Depression: "Tx will focus on sx relief, developing insight into negative core beliefs, and challenging cognitive distortions. Ct will learn and apply behavioral activation to increase meaningful activity, supported by mindfulness (defusion, awareness) to improve mood.",
+
+            // REVISED: Focus on CBT loop, distress tolerance, and committed action (non-avoidance).
+            Anxiety: "Tx will provide psychoeducation on anxiety psychophysiology and the CBT cycle. Client will master distress tolerance (e.g., breathing, PMR...) to manage physical sx's. Cognitive restructuring will address anxious thoughts, and values clarification/committed action will avoidance bx.",
+
+            // REVISED: Combined focus on core beliefs, behavioral activation, and anxiety management.
+            "Depression and Anxiety": "Tx will target depression relief, anxiety psychophysiology, and insight into core beliefs. Bx activation will increase activity for depression; cognitive modification will reduce negative cognitions. Mindfulness supports early awareness of both negative thoughts and anxious arousal.",
+
+            // REVISED: Focus on stabilization, cognitive modification, and skills practice (no exposure).
+            Trauma: "Tx will start with psychoeducation on trauma psychopathology and the treatment mechanism of action. Early stabilization focuses on relaxation and grounding for distress tolerance. Cognitive modification will address maladaptive cognitions, while present-moment awareness reduces emotional intensity. Referrals (medical, family) used PRN.",
+
+            // REVISED: Focus on stability, EWS, routines, and relapse prevention for Bipolar I.
+            "Bipolar I Disorder": "Tx will provide psychoeducation on triggers and Early Warning Signs. Bx stabilization will focus on developing strict routines for sleep and activity to mitigate cycling risk. Client will use mood/thought logs to track EWS/shifts. Cognitive skills will challenge maladaptive thoughts. Focus is on relapse prevention and activating social supports.",
+
+            // REVISED: Focus on managing depressive and hypomanic symptoms for Bipolar II.
+            "Bipolar II Disorder": "Tx will focus on psychoeducation (triggers, hypomanic sx's, adherence). Bx activation will increase activity during depressive episodes and mood stability. Ct will use mood/thought logs to track EWS/shifts. Values/committed action will increase meaningful activity; cognitive interventions will target depressive cognitions.",
+
+            // REVISED: Focus on core DBT skills for emotional regulation and crisis management.
+            Borderline: "Tx will establish emotional regulation, distress tolerance, and interpersonal effectiveness skills. Core work includes psychoeducation on emotion, trauma, and the dysregulation/CBT loop. Ct  will use mindfulness/crisis management for intense emotions and urges. Therapy will clarify personal values; cognitive interventions will target extreme, dichotomous thinking.",
+
+            // REVISED: Focus on functional skills, cognitive techniques for distress, and relapse monitoring.
+            Schizophrenia: "Tx focuses on psychoeducation (illness, mechanisms, adherence). Skill-building will emphasize social and functional living skills for community integration. Cognitive modification will challenge non-delusional distress; mindfulness and acceptance will reduce the intensity of perceptual disturbances. Ct will use EWS identification to monitor for relapse."
+        };
+        // --- END EXPANDED BOILERPLATE ---
+
+        const inputs = [
+            'client-name', 'diagnosis', 'symptoms', 'gad7-current-score', 'gad7-current-desc', 'gad7-target-score', 'gad7-target-desc',
+            'phq9-current-score', 'phq9-current-desc', 'phq9-target-score', 'phq9-target-desc', 'pcl5-current-score',
+            'pcl5-target-score', 'coping-skills-target', 'coping-skills-baseline', 'discharge-subjective', 'coping-skills-examples',
+            'plan-type-select', 'pronoun-select', 'goal-desc-detail' // <-- ADDED GOAL DESC DETAIL
+        ];
+
+        // Function to create the checkboxes in the middle pane
+        function createCheckboxes() {
+            const container = document.getElementById('checkboxes-container');
+            let html = '';
+
+            for (const domain in domainData) {
+                // Formatting domain name for section header (e.g., ADLs, HEALTHMANAGEMENT -> Health Management)
+                const domainHeader = domain.charAt(0) + domain.slice(1).toLowerCase().replace(/and/g, ' and ');
+
+                html += `<div class="checkbox-group">`;
+                html += `<div class="section-header">${domainHeader.toUpperCase()}:</div>`;
+                html += `<div class="checkbox-list">`; 
+
+                domainData[domain].occupations.forEach(occupation => {
+                    // Create a unique ID and a readable label for the checkbox
+                    const id = `cb-${occupation.replace(/\s/g, '-')}`;
+                    const label = occupation.charAt(0).toUpperCase() + occupation.slice(1);
+                    html += `<div><input type="checkbox" id="${id}" value="${occupation}" data-domain="${domain}" onchange="generateTreatmentPlan()"> <label for="${id}">${label}</label></div>`;
+                });
+                
+                html += `</div>`; // Close checkbox-list
+                html += `</div>`; // Close checkbox-group
+            }
+
+            container.innerHTML = html;
+        }
+
+        function generateTreatmentPlan() {
+            const values = {};
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                values[id] = element ? element.value : '';
+            });
+
+            // GET PRONOUNS
+            const pronounSelection = values['pronoun-select'];
+            const pronouns = getPronouns(pronounSelection);
+
+            // Diagnosis field gets its value from the input box (pre-populated/overridden)
+            const diagnosisText = values['diagnosis']; 
+            
+            // Get value from the dropdown (used only for boilerplate lookup)
+            const planType = values['plan-type-select'];
+            const customBoilerplate = objectiveBoilerplate[planType];
+            
+            // NEWLY FORMATTED VARIABLES:
+            const dxFormattedHeader = formatDxForHeader(diagnosisText);
+            const dxFormattedSentence = formatDxForSentence(diagnosisText);
+            const planTypeFormatted = formatDxForSentence(planType);
+            
+            // Coping Skills Line
+            const copingSkillsBaselineLine = formatCopingSkillsLine(values['coping-skills-baseline'], values['coping-skills-examples']);
+            
+            // Goal Description Detail (New input)
+            const goalDescDetail = values['goal-desc-detail'] || "achieve this goal.";
+
+            // Safely get Client Name and Symptoms, defaulting to placeholders if empty
+            const clientName = values['client-name'] || "Client";
+            const symptoms = values.symptoms || "unspecified symptoms";
+
+
+            // 1. Get the list of SELECTED occupations for both PROBLEM DESC and GOAL DESC
+            const selectedCheckboxes = document.querySelectorAll('#middle-pane input[type="checkbox"]:checked');
+            const goalExamples = Array.from(selectedCheckboxes).map(cb => cb.value);
+            const goalExamplesList = formatList(goalExamples);
+            // This list (e.g., "bathing, cleaning, and cooking") is used in both the Problem and Goal descriptions.
+            const selectedOccupationsOutput = goalExamples.length > 0 ? goalExamplesList : "examples from above";
+
+
+            // 2. Determine which DOMAINS have at least one occupation selected for Problem Header
+            const impactedDomainsSet = new Set();
+            selectedCheckboxes.forEach(cb => {
+                impactedDomainsSet.add(cb.getAttribute('data-domain'));
+            });
+
+            // 3. Compile the list of domain names for the PROBLEM HEADER
+            const problemHeaderDomains = [];
+            
+            // Add ONLY the domain display names if an occupation within that domain was selected.
+            Object.keys(domainData).forEach(domainKey => {
+                if (impactedDomainsSet.has(domainKey)) {
+                    problemHeaderDomains.push(domainData[domainKey].displayName);
+                }
+            });
+
+            // If no domains are selected, use the full list of domains for the Problem: header (per original template)
+            const problemHeaderList = formatList(problemHeaderDomains) || "ADLs, IADLs, health management, rest and sleep, education, work, play, leisure, and social participation";
+
+            // If occupations are selected, the PROBLEM DESC should list the SPECIFIC OCCUPATIONS.
+            let problemDescContent;
+            if (goalExamples.length === 0) {
+                const dx = dxFormattedSentence || "unspecified diagnosis";
+                
+                // Content when no boxes are checked
+                problemDescContent = `${clientName} reported experiencing symptoms related to ${dx} including, ${symptoms} that do not currently impede specific occupational domains listed.`;
+            } else {
+                // FIXED: Content when boxes ARE checked - lists the specific selected occupations.
+                problemDescContent = `${clientName} reported experiencing symptoms related to ${dxFormattedSentence} including, ${symptoms} that impede ${selectedOccupationsOutput}`;
+            }
+
+            // Discharge subjective description
+            const dischargeSubjective = values['discharge-subjective'];
+            
+            // --- FIXED BOILERPLATE TEXT (before custom diagnosis text) ---
+            const fixedObjectiveBoilerplate = `Ct and clinician will collaborate to build therapeutic skills grounded in evidence-based practices (MI, CBT, ACT...) within a strong therapeutic alliance to address ${planTypeFormatted}. Ct will complete homework to support therapeutic growth between sessions. Ct will work toward values clarification and committed action. Safety to be assessed via informal report, observation, and risk screeners. Safety plans or interventions implemented PRN.`;
+
+            // --- COMBINE AND FORMAT OBJECTIVE DESC (No Markdown) ---
+            const fullObjectiveDesc = `Over the course of 6-12 months, client will increase ${pronouns.possessive} positive coping skills baseline of ${values['coping-skills-baseline']} ${copingSkillsBaselineLine} to ${values['coping-skills-target']} or more, through therapeutic interactions (e.g., individual / group therapy and independent practice of therapy skills)
+\n${fixedObjectiveBoilerplate} ${customBoilerplate}`;
+
+            // --- REVISED INTERVENTIONS ---
+            const interventionSections = `
+Tx Intervention: Individual/Group Therapy
+Tx Intervention Desc: Client will participate in evidence-based therapies, including 2nd and 3rd wave CBT modalities (e.g., CBT, DBT, ACT, etc.) in individual or group milieus. ${pronouns.subjective.charAt(0).toUpperCase() + pronouns.subjective.slice(1)} will learn and employ up to ${values['coping-skills-target']} or more skills to manage or better tolerate ${dxFormattedSentence}-related symptoms.
+Service: Individual/group therapy
+Service Provided By: QMHP
+Frequency: Up to twice monthly
+Duration: Up to 60 minutes
+Scope: Up to one year
+
+Tx Intervention: Case management
+Tx Intervention Desc: Case management will be provided as needed to coordinate care, access community resources, and address social determinants impacting the client's ability to engage in treatment.
+Service: Case Management
+Service Provided By: QMHP/QMHA
+Frequency: Up to once monthly
+Duration: Up to 60 minutes
+Scope: Up to one year
+
+Tx Intervention: Skills Training
+Tx Intervention Desc: Skills training will focus on developing and practicing targeted skills related to emotion regulation, distress tolerance, interpersonal effectiveness, and daily living to improve overall functioning and reduce symptoms.
+Service: Skills Training
+Service Provided By: QMHP/QMHA
+Frequency: Up to once monthly
+Duration: Up to 60 minutes
+Scope: Up to one year
+`;
+
+            // --- ASSEMBLE FINAL OUTPUT ---
+            const txPlan = `
+CLIENT: ${clientName}
+DIAGNOSIS (DX(S)): ${diagnosisText}
+SYMPTOMS (SX(S)): ${symptoms}
+PRONOUNS: ${pronounSelection} (${pronouns.subjective}/${pronouns.objective}/${pronouns.possessive})
+--------------------------
+
+PROBLEM: ${dxFormattedHeader} related symptoms negatively impact: ${problemHeaderList}
+
+PROBLEM DESC: ${problemDescContent}
+
+GOAL: Decrease ${dxFormattedHeader} related symptoms that interfere with multiple functional domains.
+
+GOAL DESC: Client will reduce ${dxFormattedSentence} related symptoms that interfere with ${selectedOccupationsOutput}, as measured by decreased scores on the GAD-7 (currently ${values['gad7-current-score']}, "${values['gad7-current-desc']}") and PHQ-9 (currently ${values['phq9-current-score']}, "${values['phq9-current-desc']}"). Over the course of 6-12 months, client will ${goalDescDetail}
+
+DISCHARGE CRITERIA: Client will experience significantly reduced ${dxFormattedSentence} related symptoms as measured by screener scores on the GAD-7 (currently, ${values['gad7-current-score']} "${values['gad7-current-desc']}") to ≤ ${values['gad7-target-score']} ("${values['gad7-target-desc']}"), PHQ 9 (currently ${values['phq9-current-score']} "${values['phq9-current-desc']}") to ≤ ${values['phq9-target-score']} ("${values['phq9-target-desc']}"), and PCL-5 (currently ${values['pcl5-current-score']}) to ≤ ${values['pcl5-target-score']}; as well as by subjective client and clinician-observation of ${dischargeSubjective}
+
+OBJECTIVE: Client will learn, practice, and use ≥ ${values['coping-skills-target']} coping skills to manage ${dxFormattedSentence} related symptoms.
+
+OBJECTIVE DESC: ${fullObjectiveDesc}
+
+AS MEASURED BY: QMHP observation, client self-report, and screeners/assessments
+\n--------------------------${interventionSections}
+`;
+            
+            // FINAL CLEANUP: Enforce specific capitalization rules (first word of content after the colon)
+            let finalCleanedOutput = txPlan.trim();
+            
+            finalCleanedOutput = finalCleanedOutput
+                .replace(/^(PROBLEM|GOAL|OBJECTIVE|Tx Intervention): (.*)/gm, (match, p1, content) => `${p1}: ${content.charAt(0).toUpperCase() + content.slice(1)}`)
+                .replace(/^(PROBLEM DESC|GOAL DESC|DISCHARGE CRITERIA|OBJECTIVE DESC|AS MEASURED BY|Tx Intervention Desc|Service|Service Provided By|Frequency|Duration|Scope): (.*)/gm, (match, p1, content) => {
+                    const trimmedContent = content.trimStart();
+                    return `${p1}: ${trimmedContent.charAt(0).toUpperCase() + trimmedContent.slice(1)}`;
+                });
+
+            document.getElementById('treatment-plan-output').textContent = finalCleanedOutput;
+        }
+
+        // --- Clipboard Functionality ---
+        function copyToClipboard() {
+            const output = document.getElementById('treatment-plan-output').textContent;
+            // Use modern Clipboard API for better success rates
+            navigator.clipboard.writeText(output).then(() => {
+                alert('Treatment Plan copied to clipboard!');
+            }).catch(err => {
+                console.error('Could not copy text: ', err);
+                // Fallback for browsers that don't support the Clipboard API
+                const outputElement = document.getElementById('treatment-plan-output');
+                const range = document.createRange();
+                range.selectNode(outputElement);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                alert('Copy failed (using fallback). Please check clipboard.');
+            });
+        }
+        // --- End Clipboard Functionality ---
+
+        // --- Export and Import Functionality ---
+
+        function exportData() {
+            const data = {};
+            
+            // 1. Collect standard inputs
+            inputs.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) data[id] = el.value;
+            });
+
+            // 2. Collect checkbox states
+            const checkboxes = document.querySelectorAll('#middle-pane input[type="checkbox"]');
+            data.checkboxes = {};
+            checkboxes.forEach(cb => {
+                data.checkboxes[cb.id] = cb.checked;
+            });
+
+            // 3. Create and trigger download
+            const clientName = document.getElementById('client-name').value || 'TreatmentPlan';
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${clientName}_Data.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+
+                    // 1. Restore standard inputs
+                    inputs.forEach(id => {
+                        if (data[id] !== undefined) {
+                            const el = document.getElementById(id);
+                            if (el) el.value = data[id];
+                        }
+                    });
+
+                    // 2. Restore checkbox states
+                    if (data.checkboxes) {
+                        for (const id in data.checkboxes) {
+                            const cb = document.getElementById(id);
+                            if (cb) cb.checked = data.checkboxes[id];
+                        }
+                    }
+
+                    // 3. Refresh the app state
+                    updateScreenerDescriptors(); // This also triggers generateTreatmentPlan()
+                    alert('Data imported successfully!');
+                } catch (err) {
+                    alert('Error parsing file. Please ensure it is a valid Treatment Plan JSON.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            createCheckboxes();
+            
+            // Attach listeners to all relevant inputs
+            inputs.forEach(id => {
+                const element = document.getElementById(id);
+                // Attach to text inputs, textareas, and the select dropdown
+                if (element && !element.hasAttribute('readonly')) {
+                    // Score inputs use updateScreenerDescriptors, others use generateTreatmentPlan directly
+                    if (['gad7-current-score', 'gad7-target-score', 'phq9-current-score', 'phq9-target-score'].includes(id)) {
+                        element.addEventListener('input', updateScreenerDescriptors);
+                    } else if (id !== 'plan-type-select' && id !== 'pronoun-select') {
+                        // Checkboxes are handled by inline onchange, other non-score inputs handled here
+                        element.addEventListener('input', generateTreatmentPlan);
+                    }
+                }
+            });
+            
+            // Initial population
+            updateDiagnosisField(); // Set initial diagnosis text
+            updateScreenerDescriptors(); // Initializes descriptors and runs generateTreatmentPlan
+        });
+
+    </script>
+</body>
+</html>

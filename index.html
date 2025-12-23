@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DSM-5-TR Formulation Generator</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script>
+        /**
+         * 1. MODULE MANIFEST
+         * Add the filename (without .js) to this array whenever you add a new file to your /js folder.
+         */
+        const modules = [
+            'acute-stress-disorder',
+            'adhd',
+            'adjustment',
+            'antisocial',
+            'aud', 
+            'bipolar1', 
+            'bipolar2',
+            'borderline',
+            'cannabis-use-disorder',
+            'delusional-disorder',
+            'gad',
+            'mdd',
+            'mh-due-to-another-medical-condition',
+            'narcissistic',
+            'ncd',
+            'neurocognitive-disorder',
+            'ocd',
+            'oud',
+            'panic',
+            'pdd',
+            'ptsd', 
+            'schizoaffective',
+            'schizophrenia', 
+            'sexual-dysfunction',
+            'sleep-wake',
+            'socanx',
+            'stimulant-use-disorder',
+            'substance-induced-disorder',
+            'unspec-trauma',
+            'unspecdep',
+        ];
+
+        // Global registries must be initialized BEFORE scripts load
+        window.CRITERIA_DATA = window.CRITERIA_DATA || {};
+        window.FORMULATION_GENERATORS = window.FORMULATION_GENERATORS || {};
+
+        /**
+         * 2. DYNAMIC LOADER
+         * Injects script tags for each module. async = false ensures they 
+         * execute in order so window.CRITERIA_DATA is populated correctly.
+         */
+        modules.forEach(module => {
+            const script = document.createElement('script');
+            script.src = `js/${module}.js`;
+            script.async = false; 
+            document.head.appendChild(script);
+        });
+
+        /**
+         * 3. TEXT UTILITY
+         * Formats arrays into grammatically correct serial lists.
+         */
+        function serialList(arr) {
+            if (arr.length === 0) return '';
+            if (arr.length === 1) return arr[0];
+            if (arr.length === 2) return arr.join(' and ');
+            const last = arr[arr.length - 1];
+            const rest = arr.slice(0, -1);
+            return rest.join(', ') + ', and ' + last;
+        }
+    </script>
+</head>
+<body>
+    <div id="app-container">
+        <div id="choice-pane" class="pane">
+            <h2>Select Diagnoses</h2>
+            <div id="diagnosis-list" class="scroll-container"></div> 
+        </div>
+
+        <div id="criteria-pane" class="pane">
+            <h2>Criteria Selection</h2>
+            <div id="criteria-content"></div>
+        </div>
+
+        <div id="output-pane" class="pane">
+            <h2>Formulation Output</h2>
+            <textarea id="output-text" placeholder="Select one or more diagnoses on the left..."></textarea>
+            <button id="copy-button">Copy to Clipboard</button>
+        </div>
+    </div>
+
+    <script>
+        const diagnosisListContainer = document.getElementById('diagnosis-list');
+        const criteriaContainer = document.getElementById('criteria-content');
+        const outputTextarea = document.getElementById('output-text');
+        const copyButton = document.getElementById('copy-button');
+
+        // Track which diagnoses are currently active
+        let activeDiagnoses = new Set();
+
+        /**
+         * 4. INITIALIZATION
+         * Builds the checkbox list for diagnoses once all modules are loaded.
+         */
+        window.addEventListener('load', () => {
+            diagnosisListContainer.innerHTML = ''; 
+
+            const keys = Object.keys(window.CRITERIA_DATA).sort();
+
+            if (keys.length === 0) {
+                console.error("No modules loaded into CRITERIA_DATA. Check file paths.");
+                diagnosisListContainer.innerHTML = '<p style="color:red">No modules found.</p>';
+                return;
+            }
+
+            keys.forEach(key => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'diagnosis-item';
+                const labelText = window.CRITERIA_DATA[key].fullTitle || key;
+                
+                itemDiv.innerHTML = `
+                    <input type="checkbox" id="dx-${key}" value="${key}" class="dx-toggle">
+                    <label for="dx-${key}">${labelText}</label>
+                `;
+                diagnosisListContainer.appendChild(itemDiv);
+            });
+
+            // Handle toggling of diagnoses
+            diagnosisListContainer.querySelectorAll('.dx-toggle').forEach(checkbox => {
+                checkbox.addEventListener('change', (e) => {
+                    const dxKey = e.target.value;
+                    if (e.target.checked) {
+                        activeDiagnoses.add(dxKey);
+                    } else {
+                        activeDiagnoses.delete(dxKey);
+                    }
+                    renderAllActiveCriteria();
+                });
+            });
+        });
+
+        /**
+         * 5. RENDER ENGINE
+         * Iterates through activeDiagnoses to render the checkbox lists for each.
+         */
+        function renderAllActiveCriteria() {
+            // Save currently checked symptom IDs so they persist during re-renders
+            const savedChecks = Array.from(criteriaContainer.querySelectorAll('.symptom-check:checked'))
+                                     .map(cb => cb.id);
+
+            criteriaContainer.innerHTML = '';
+            
+            // Loop through all active keys
+            activeDiagnoses.forEach(dxKey => {
+                const data = window.CRITERIA_DATA[dxKey];
+                if (!data) return;
+
+                const dxWrapper = document.createElement('div');
+                dxWrapper.className = 'dx-group-wrapper';
+                dxWrapper.innerHTML = `<h2 class="dx-header">${data.fullTitle || dxKey}</h2>`;
+
+                data.sections.forEach(section => {
+                    const sectionDiv = document.createElement('div');
+                    sectionDiv.className = 'criteria-section';
+                    sectionDiv.innerHTML = `<h3>${section.title}</h3>`;
+                    
+                    section.items.forEach((item, index) => {
+                        const itemId = `check-${dxKey}-${section.prefix}${index + 1}`;
+                        const isChecked = savedChecks.includes(itemId);
+                        
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'criteria-item';
+                        itemDiv.innerHTML = `
+                            <input type="checkbox" id="${itemId}" 
+                                   data-dx="${dxKey}" 
+                                   data-section="${section.prefix}" 
+                                   class="symptom-check" ${isChecked ? 'checked' : ''}>
+                            <label for="${itemId}">${item}</label>
+                        `;
+                        sectionDiv.appendChild(itemDiv);
+                    });
+                    dxWrapper.appendChild(sectionDiv);
+                });
+                criteriaContainer.appendChild(dxWrapper);
+            });
+
+            // Re-attach listeners to the symptom checkboxes
+            criteriaContainer.querySelectorAll('.symptom-check').forEach(checkbox => {
+                checkbox.addEventListener('change', updateFormulation);
+            });
+            
+            updateFormulation();
+        }
+
+        /**
+         * 6. GENERATION LOGIC
+         * Combines individual formulations into the master text area.
+         */
+        function updateFormulation() {
+            let fullFormulation = [];
+
+            // Sort active diagnoses alphabetically to keep output consistent
+            const sortedDxKeys = Array.from(activeDiagnoses).sort();
+
+            sortedDxKeys.forEach(dxKey => {
+                const selectedData = [];
+                const generator = window.FORMULATION_GENERATORS[dxKey];
+                
+                const checkedSymptoms = criteriaContainer.querySelectorAll(`.symptom-check[data-dx="${dxKey}"]:checked`);
+                
+                checkedSymptoms.forEach(checkbox => {
+                    const label = document.querySelector(`label[for="${checkbox.id}"]`).textContent.trim();
+                    selectedData.push({
+                        id: checkbox.id,
+                        section: checkbox.dataset.section,
+                        text: label
+                    });
+                });
+
+                if (generator && selectedData.length > 0) {
+                    fullFormulation.push(generator(selectedData));
+                }
+            });
+
+            outputTextarea.value = fullFormulation.join('\n\n');
+        }
+
+        // CLIPBOARD LOGIC
+        copyButton.addEventListener('click', () => {
+            navigator.clipboard.writeText(outputTextarea.value).then(() => {
+                const originalText = copyButton.textContent;
+                copyButton.textContent = 'Copied!';
+                setTimeout(() => { copyButton.textContent = originalText; }, 1500);
+            });
+        });
+    </script>
+</body>
+</html>

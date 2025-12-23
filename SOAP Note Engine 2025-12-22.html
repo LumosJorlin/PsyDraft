@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SOAP Note Engine (Goal-S-O-A-P-Risk)</title>
+    <style>
+        /* 0. DEFINE COLOR VARIABLES (Default Light Theme) */
+        :root {
+            --color-bg-primary: #f4f4f4;
+            --color-bg-secondary: #ffffff; /* Pane background */
+            --color-text-primary: #333;
+            --color-text-secondary: #555;
+            --color-accent-primary: #333; /* Generate Button, H2 Border */
+            --color-accent-secondary: #555; /* Copy Button Default */
+            --color-border-default: #ccc;
+            --color-border-dark: #333; /* Generate Button Hover */
+            --color-border-light: #ddd;
+            --color-bg-output: #f7f7f7;
+            --color-bg-protective: #f6fef4; /* Light green background for protective factors */
+            --color-border-protective: #eaffea; /* Light green border */
+            --color-tab-inactive: #f0f0f0;
+            --color-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        /* 1. GRUVBOX DARK MEDIUM THEME OVERRIDE */
+        .gruvbox-theme {
+            --color-bg-primary: #3c3836; /* bg */
+            --color-bg-secondary: #282828; /* bg_soft */
+            --color-text-primary: #ebdbb2; /* fg */
+            --color-text-secondary: #a89984; /* gray */
+            --color-accent-primary: #458588; /* blue (primary action) */
+            --color-accent-secondary: #d65d0e; /* orange (secondary action) */
+            --color-border-default: #504945; /* border */
+            --color-border-dark: #83a598; /* aqua (button hover) */
+            --color-border-light: #504945; /* border */
+            --color-bg-output: #363636; /* Same as primary background for output */
+            --color-bg-protective: #30342f; /* Use soft background */
+            --color-border-protective: #30342f; /* green */
+            --color-tab-inactive: #282828; /* bg */
+            --color-shadow: rgba(0, 0, 0, 0.5);
+        }
+
+        /* --- Base Styles --- */
+        body {
+            font-family: 'Inter', Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--color-bg-primary);
+            min-height: 100vh;
+            color: var(--color-text-primary);
+            font-size: 1.0em;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* --- NEW FIXED THEME TOGGLE CONTAINER --- */
+        #theme-toggle-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000; /* Ensure it stays above everything */
+            /* Add padding on mobile to keep it from hitting the edge */
+            padding: 0; 
+            margin: 0;
+        }
+
+        /* --- Input Container (Default: Stacked Columns) --- */
+        #app-container {
+            width: 100%;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column; /* Default stack on narrow screens */
+            gap: 1.0rem;
+            margin: 0; 
+            box-sizing: border-box;
+        }
+
+        /* Base styling for all columns/panes */
+        .pane, #input-col-1, #input-col-2 {
+            padding: 1.0rem;
+            border-radius: 0.25rem;
+            box-shadow: 0 1px 3px 0 var(--color-shadow);
+            background-color: var(--color-bg-secondary);
+            display: flex;
+            flex-direction: column;
+            min-height: auto;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        /* The container holding the two input columns */
+        #input-panes {
+            display: flex;
+            flex-direction: column; /* Default stack */
+            gap: 1.5rem;
+        }
+        
+        /* ================================================= */
+        /* --- Desktop/Wide Screen Layout (3-Pane) --- */
+        /* ================================================= */
+        @media (min-width: 1200px) {
+            body {
+                height: 100vh;
+                overflow: hidden; /* Hide body scrollbar as columns will scroll */
+            }
+
+            #app-container {
+                flex-direction: row; 
+                align-items: stretch;
+                height: 100%; 
+                padding: 1rem;
+                gap: 1rem; 
+                width: 100%;
+            }
+
+            #input-panes {
+                flex-direction: row; /* Input columns side-by-side */
+                flex: 2 1 0; /* Input panes take 2/3 width */
+                gap: 1rem; 
+                min-width: 0; 
+            }
+
+            #input-col-1, #input-col-2 {
+                /* New split: Input-col-1 (Text) and Input-col-2 (Options) split the 2/3 width equally */
+                flex: 1 1 0; 
+                max-height: 100%;
+                overflow-y: auto; /* Independent scrolling */
+                min-width: 0; 
+            }
+            
+            #output-pane {
+                flex: 1 1 0; /* Output pane takes 1/3 width */
+                max-height: 100%;
+                overflow-y: auto; 
+                min-width: 0; 
+            }
+        }
+        
+        /* --- Shared Component Styles --- */
+        h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text-primary);
+            border-bottom: 2px solid var(--color-accent-primary);
+            padding-bottom: 0.75rem;
+            margin-top: 0;
+            margin-bottom: 1.5rem;
+        }
+
+        h3 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            border-bottom: 1px solid var(--color-border-light);
+            padding-bottom: 0.4rem;
+            margin-top: 1rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .input-group {
+            margin-bottom: 1rem;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .input-group label {
+            font-weight: 600;
+            margin-bottom: 0.4rem;
+            display: block;
+        }
+        
+        /* Custom labels for radio/checkbox groups */
+        .input-group .radio-option-label {
+             font-weight: normal;
+             font-size: 0.9em;
+             margin-bottom: 0.2rem;
+             display: flex;
+             align-items: center;
+        }
+
+        input[type="text"], input[type="number"], select, textarea, input[type="datetime-local"], input[type="date"], input[type="time"] {
+            padding: 0.6rem;
+            border: 1px solid var(--color-border-default);
+            border-radius: 0.4rem;
+            width: 100%;
+            box-sizing: border-box;
+            font-size: 0.9em;
+            background-color: var(--color-bg-primary);
+            color: var(--color-text-primary);
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .options-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); 
+            gap: 0.7rem;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Custom styles for the 'Other' input field */
+        .other-input-container {
+            margin-top: 0.5rem;
+            display: none; /* Hidden by default */
+        }
+        .other-input-container label {
+            font-weight: 500;
+            font-size: 0.9em;
+            color: var(--color-text-secondary);
+        }
+        .other-input-container input[type="text"] {
+             font-size: 0.9em;
+        }
+        
+        /* --- RISK Section Styles --- */
+        /* Removed .risk-domain-group since it's now dynamically created content */
+        /* The dynamic content uses .tab-content for the container. */
+        .risk-domain-group h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+            color: var(--color-text-primary);
+            font-weight: 600;
+            border-bottom: 1px solid var(--color-border-light);
+            padding-bottom: 5px;
+        }
+        .risk-domain-group .options-grid {
+             margin-bottom: 5px;
+             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        }
+        
+        /* Dedicated style for the protective factor group - applied to the tab content div */
+        .protective-factors-group {
+            background-color: var(--color-bg-protective) !important;
+            border-color: var(--color-border-protective) !important;
+            border: 1px solid var(--color-border-protective) !important; /* Added border */
+            padding: 10px; /* Added padding */
+            border-radius: 4px;
+        }
+        
+        /* --- Modality Selector Styles --- */
+        .tab-selector {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid var(--color-border-light);
+            overflow-x: auto; 
+        }
+        .tab-selector button {
+            padding: 5px 10px; 
+            border: none;
+            background-color: var(--color-tab-inactive);
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            border-top-left-radius: 6px;
+            border-top-right-radius: 6px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            flex-shrink: 0; 
+            font-size: 0.9em; 
+        }
+        .tab-selector button.active {
+            background-color: var(--color-accent-primary);
+            color: white; /* Active text color remains white for contrast */
+            border-bottom: 2px solid var(--color-accent-primary);
+        }
+        .tab-content {
+            padding: 10px 0;
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .modality-grid {
+             display: grid;
+             grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+             gap: 8px;
+        }
+        .modality-grid label {
+            font-size: 0.85em;
+        }
+        .modality-grid input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        /* Style for the custom input field within the modality grid */
+        .modality-grid input[type="text"] {
+            margin-left: 20px;
+            margin-bottom: 5px;
+            font-size: 0.8em;
+        }
+
+
+        /* --- A Section Checkboxes/Selects --- */
+        .a-section-group {
+            border: 1px solid var(--color-border-light);
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .a-section-group h4 {
+            margin-top: 0;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+            color: var(--color-text-primary);
+        }
+        .a-checkboxes {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .a-checkboxes label {
+            font-weight: normal;
+            font-size: 0.85em;
+            display: flex;
+            align-items: center;
+        }
+        .a-checkboxes input[type=\"checkbox\"] {
+            margin-right: 5px;
+        }
+        
+        /* Specific style for Orientation checkboxes (UPDATED FOR TWO COLUMNS) */
+        .orientation-options {
+            display: grid; 
+            grid-template-columns: 1fr 1fr; /* Two equal columns */
+            gap: 5px;
+        }
+
+        /* --- New MSE Tab Container Styles --- */
+        #mse-selector, #risk-selector {
+            border: 1px solid var(--color-border-light);
+            border-radius: 4px;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        .mse-content-grid {
+             display: grid;
+             grid-template-columns: 1fr 1fr; /* Two columns for dropdowns in MSE tabs */
+             gap: 10px;
+             margin-top: 10px;
+        }
+        
+        /* Specific style for the congruence radio buttons inside the MSE tab */
+        #content-affect .input-group:last-child {
+            grid-column: span 2; /* Make congruence span two columns if in grid */
+        }
+
+
+        /* --- Output Pane Styles --- */
+        #output-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        #output-text {
+            width: 100%;
+            flex-grow: 1;
+            min-height: 400px;
+            padding: 1rem;
+            box-sizing: border-box;
+            border: 1px solid var(--color-border-default);
+            border-radius: 0.5rem;
+            resize: vertical;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            white-space: pre-wrap;
+            line-height: 1.5;
+            background-color: var(--color-bg-output);
+            color: var(--color-text-primary);
+            font-size: 0.9em;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* Shared button styles */
+        #copy-button, #theme-toggle-button {
+            padding: 0.75rem 1.5rem;
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-weight: 600;
+        }
+        
+        /* Re-apply width: 100% only to the control panel buttons */
+        #output-controls #copy-button {
+            width: 100%;
+        }
+
+        /* Removed #generate-button styles */
+        
+        #copy-button {
+            background-color: var(--color-accent-secondary);
+        }
+        #copy-button:hover {
+            background-color: var(--color-accent-primary);
+        }
+        
+        /* Specific style for the fixed theme button */
+        #theme-toggle-button {
+            background-color: var(--color-text-secondary); /* Use a neutral color */
+            padding: 0.5rem 1rem; /* Smaller padding */
+            font-size: 0.9em;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Add a subtle shadow for visibility */
+        }
+        #theme-toggle-button:hover {
+            background-color: var(--color-accent-primary);
+        }
+        
+    </style>
+</head>
+<body>
+
+<div id="theme-toggle-container">
+    <button id="theme-toggle-button">L/D</button>
+</div>
+    
+<div id="app-container">
+    
+    <div id="input-panes">
+        <div id="input-col-1" class="pane">
+            
+            <h2>Client & Session Essentials</h2>
+            <div class="options-grid" style="grid-template-columns: 1fr 1fr;">
+                 <div class="input-group">
+                    <label for="date-time">Date and Time of Session</label>
+                    <input type="datetime-local" id="date-time" value="">
+                </div>
+                <div class="input-group">
+                    <label for="clinician-name">Clinician Name/Initial</label>
+                    <input type="text" id="clinician-name" placeholder="F.I. Last">
+                </div>
+            </div>
+            
+            <div class="options-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div>
+                    <label for="first-name">Client First Name</label>
+                    <input type="text" id="first-name" value="">
+                </div>
+                <div>
+                    <label for="last-name">Client Last Name</label>
+                    <input type="text" id="last-name" value="">
+                </div>
+                <div class="input-group">
+                    <label for="gender">Gender / Pronouns</label>
+                    <select id="gender" onchange="handleOtherOption('gender')">
+                        <option value="she">Female (She/Her)</option>
+                        <option value="he">Male (He/Him)</option>
+                        <option value="they">Non-Binary (They/Them)</option>
+                        <option value="other">Other (Specify)</option>
+                    </select>
+                </div>
+            </div>
+            <div id="other-gender-container" class="input-group other-input-container">
+                <label for="other-gender-input">Specify Gender / Pronouns</label>
+                <input type="text" id="other-gender-input" placeholder="e.g., Agender, She/They, etc.">
+            </div>
+
+            <h2>Session Logistics</h2>
+            <div class="options-grid" style="grid-template-columns: 1fr 1fr 1fr;">
+                <div>
+                    <label for="arrival-time">Arrival Time</label>
+                    <input type="text" id="arrival-time" placeholder="HH:MM" value="">
+                </div>
+                <div class="input-group">
+                    <label for="session-length">Session Length</label>
+                    <select id="session-length" onchange="handleOtherOption('session-length')">
+                        <option value="50-minute">50-minute</option>
+                        <option value="45-minute">45-minute</option>
+                        <option value="30-minute">30-minute</option>
+                        <option value="90-minute">90-minute</option>
+                        <option value="other">Other (Specify)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="session-location">Location</label>
+                    <select id="session-location" onchange="handleOtherOption('session-location')">
+                        <option value="in-person">In-person</option>
+                        <option value="telehealth">Telehealth</option>
+                        <option value="other">Other (Specify)</option>
+                    </select>
+                </div>
+            </div>
+            <div id="other-session-length-container" class="input-group other-input-container">
+                <label for="other-session-length-input">Specify Session Length</label>
+                <input type="text" id="other-session-length-input" placeholder="e.g., 60-minute">
+            </div>
+            <div id="other-session-location-container" class="input-group other-input-container">
+                <label for="other-session-location-input">Specify Session Location</label>
+                <input type="text" id="other-session-location-input" placeholder="e.g., Phone Call, School, etc.">
+            </div>
+            
+            
+            <h2>SOAP Text Entry</h2>
+            
+            <h3>GOAL & Subjective</h3>
+            <div class="input-group">
+                <label for="goal-paste">GOAL</label>
+                <input type="text" id="goal-paste" placeholder="E.g., pasted from the TX+ plan"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="subjective-report">Subjective Report</label>
+                <textarea id="subjective-report" placeholder="Quotes or summaries. E.g., 'I felt better this week and was able to get out of bed every day.'"></textarea>
+            </div>
+
+            <h3>O: Session Content</h3>
+            <div class="input-group">
+                <label for="session-content">Objective: Session Content Narrative</label>
+                <textarea id="session-content" placeholder="E.g., 'We reviewed the distress tolerance skills from DBT, specifically focusing on self-soothing techniques.'"></textarea>
+            </div>
+            
+            <h3>A: Clinical Assessment</h3>
+            <div class="input-group">
+                <label for="diagnostic-impression">Assessment: Clinical Formulation / Diagnostic Impression</label>
+                <textarea id="diagnostic-impression" placeholder="E.g., Adjustment Disorder with Depressed Mood or detailed clinical impression"></textarea>
+            </div>
+            
+            <h3>P: Plan Details</h3>
+            <div class="input-group">
+                <label for="homework-steps">Plan: Homework Step(s)</label>
+                <textarea id="homework-steps" placeholder="E.g., 'practice 5-4-3-2-1 grounding technique at least twice.'"></textarea>
+            </div>
+            <div class="input-group">
+                <label for="ongoing-plan">Ongoing Therapy</label>
+                <input type="text" id="ongoing-plan" placeholder="E.g., CBT for depression" value="">
+            </div>
+
+
+        </div>
+        
+        <div id="input-col-2" class="pane">
+            <h2>Checklists & Options</h2>        
+            <h3 style="margin-top: 0rem;">O: Interventions</h3>
+            <div id="modality-selector">
+                <div class="tab-selector" id="modality-tabs">
+                    </div>
+                <div id="modality-content">
+                    </div>
+            </div>
+
+            <h3 style="margin-top: 1.5rem;">A: Mental Status Exam (MSE)</h3>
+            
+            <div id="mse-selector">
+                <div class="tab-selector" id="mse-tabs">
+                </div>
+                <div id="mse-content">
+                </div>
+            </div>
+
+            <h3 style="margin-top: 1.5rem;">P: Next Session</h3>
+            <div class="options-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="input-group">
+                    <label for="appt-type">Appointment Type</label>
+                    <select id="appt-type" onchange="handleOtherOption('appt-type')">
+                        <option value="in-person session">In-person Session</option>
+                        <option value="telehealth session">Telehealth Session</option>
+                        <option value="other">Other (Specify)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="therapy-frequency">Therapy Frequency</label>
+                    <select id="therapy-frequency" onchange="handleOtherOption('therapy-frequency')">
+                        <option value="bi-weekly">Bi-weekly</option>
+                        <option value="weekly">weekly</option>
+                        <option value="twice weekly">Twice Weekly</option>
+                        <option value="three times weekly">Three Times Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="PRN/As Needed">PRN/As Needed</option>
+                        <option value="no further">No Further</option>
+                        <option value="TBD">To Be Determined</option>
+                        <option value="other">Other (Specify)</option>
+                    </select>
+                </div>
+            </div>
+            <div id="other-appt-type-container" class="input-group other-input-container">
+                <label for="other-appt-type-input">Specify Appointment Type</label>
+                <input type="text" id="other-appt-type-input" placeholder="e.g., Group Session, Assessment, etc.">
+            </div>
+            <div id="other-therapy-frequency-container" class="input-group other-input-container">
+                <label for="other-therapy-frequency-input">Specify Therapy Frequency</label>
+                <input type="text" id="other-therapy-frequency-input" placeholder="e.g., every 10 days, twice a month, etc.">
+            </div>
+
+            <div class="options-grid" style="grid-template-columns: 1fr 1fr;">
+                <div class="input-group">
+                    <label for="next-time">Next Appointment Time</label>
+                    <input type="time" id="next-time" value="">
+                </div>
+                <div class="input-group">
+                    <label for="next-date">Next Appointment Date</label>
+                    <input type="date" id="next-date">
+                </div>
+            </div>
+            
+            
+            <h3 style="margin-top: 1.5rem;">Risk: (Check if Endorsed / Present)</h3>
+            
+            <div id="risk-selector" style="margin-top: 10px;">
+                <div class="tab-selector" id="risk-tabs">
+                </div>
+                <div id="risk-content">
+                </div>
+            </div>
+            </div>
+    </div>
+    
+    <div id="output-pane" class="pane">
+        <h2>Generated SOAP Note</h2>
+        
+        <div id="output-controls">
+        <button id="copy-button">Copy to Clipboard</button>
+        <div style="display: flex; gap: 10px; margin-top: 10px;">
+            <button id="export-button" style="flex: 1; background-color: var(--color-accent-primary); color: white; border: none; padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600;">Export (Save File)</button>
+            <button id="import-button" style="flex: 1; background-color: var(--color-text-secondary); color: white; border: none; padding: 0.75rem; border-radius: 0.5rem; cursor: pointer; font-weight: 600;">Import (Load File)</button>
+        </div>
+        <input type="file" id="import-file" accept=".json" style="display: none;">
+    </div>
+        <textarea id="output-text" readonly placeholder="Your custom-ordered SOAP note (GOAL, S, O, A, P, RISK) will be generated here in real-time as you fill out the fields."></textarea>
+    </div>
+
+</div>
+
+<script>
+    // Placeholder value for the "Other" technique in the data structure
+    const OTHER_TECHNIQUE_PLACEHOLDER = '__OTHER_TECHNIQUE__';
+    
+    // --- Data Structure for Modalities/Techniques ---
+    const modalityData = {
+        'MI': [
+            'empathy', 'open-ended questions', 'paraphrases', 'repetitions',  'non-verbal listening', 'reflective statements', 'OARS (Open-ended questions, Affirmations, Reflections, Summaries)', 'Evocative Questioning', 'Change Talk', 
+            'Simple Reflections','Complex Reflections', 'Double-Sided Reflections', 'Summarization', 'Summarizing for Clarity', 'Summarizing for Transition',  
+            'Normalization','Validation', 'Exploring Importance/Confidence', 'Decisional Balance Review',
+            OTHER_TECHNIQUE_PLACEHOLDER
+        ],
+        'CBT': [
+            'Cognitive Restructuring', 'Thought Record', 'Psychoeducation',
+            'Socratic Questioning', 'Behavioral Activation', 'Exposure Therapy Discussion',
+            'Challenging Core Beliefs', 'Identifying Cognitive Distortions',
+            OTHER_TECHNIQUE_PLACEHOLDER
+        ],
+        'ACT': [
+            'Mindfulness (Defusion)', 'Values Clarification', 'Committed Action Planning',
+            'Creative Hopelessness', 'The Observer Self', 'Acceptance Exercises',
+            'Identifying Barriers', 'Willingness and Acceptance',
+            OTHER_TECHNIQUE_PLACEHOLDER
+        ],
+        'SFBT': [
+            'Miracle Question', 'Scaling Questions', 'Exception Finding Questions',
+            'Coping Questions', 'Compliments and Affirmations', 'Formula First Session Task (FFST)',
+            'Breakdown of Goal into Small Steps', 'Eliciting Solutions',
+            OTHER_TECHNIQUE_PLACEHOLDER
+        ],
+        'DBT': [
+            'Distress Tolerance (TIPP/STOP/Self-Sooth)', 'Mindfulness Practice', 'Emotion Regulation Skills',
+            'Interpersonal Effectiveness Role Play', 'Chain Analysis', 'Validation and Acceptance',
+            'Walking the Middle Path', 'Dialectical Strategies',
+            OTHER_TECHNIQUE_PLACEHOLDER
+        ],
+    };
+
+    // --- Data Structure for Mental Status Exam (MSE) ---
+    const mseData = {
+        'Appearance': [ 
+            // 1. General Appearance (Posture, Physical Status, Demeanor)
+            { id: 'a-general-appearance', label: 'General Appearance', options: ['NAD', 'their stated age', 'older than stated age', 'younger than stated age', 'fit and healthy', 'frail', 'cachectic', 'tired', 'fatigued', 'calm and relaxed', 'tense', 'on-edge', 'well-groomed', 'other'] },
+            // *** NEW BUILD FIELD ***
+            { id: 'a-build', label: 'Build/Nourishment', options: ['well-nourished', 'average build', 'underweight', 'overweight', 'obese', 'cachectic', 'slender', 'muscular', 'ill appearing', 'other'] }, 
+            // 2. Attire (Clothing, Appropriateness, Cleanliness)
+            { id: 'a-attire', label: 'Attire', options: ['clean and appropriate to setting', 'clean and appropriate to season', 'appropriate to setting', 'clean and casual', 'clean and well-maintained', 'in pajamas/casual', 'formal', 'disheveled', 'stained', 'excessively heavy', 'excessively heavy', 'inappropriate for season', 'ill-fitting', 'revealing', 'other'] },
+            { id: 'a-grooming', label: 'Grooming/Hygiene', options: ['appropriate to setting', 'well-groomed', 'good', 'poor', 'unkempt', 'neglected', 'slovenly', 'other'] },
+            { id: 'a-motor', label: 'Motor Activity', options: ['WNL', 'restless', 'fidgeting', 'slowed', 'hypoactive', 'agitated', 'hyperactive', 'tics/tremors', 'other'] },
+            { id: 'a-behavior', label: 'Behavior / Engagement', options: ['cooperative and engaged', 'guarded', 'reluctant', 'agitated', 'irritable', 'withdrawn', 'quiet', 'hostile', 'seductive', 'other'] }
+        ],
+        'Thought': [
+            { id: 'a-speech', label: 'Speech Rate/Volume', options: ['clear and coherent', 'soft', 'minimal', 'pressured', 'rapid', 'slurred', 'disorganized', 'mute', 'loud', 'other'] },
+            { id: 'a-thought-process', label: 'Thought Process', options: ['linear and goal-directed', 'circumstantial', 'tangential', 'fragmented', 'flight of ideas', 'notable for word salad', 'notable for poverty of thought', 'other'] },
+            { id: 'a-thought-content', label: 'Thought Content', options: ['no apparent preoccupation', 'preoccupied with trauma', 'obsessional thoughts', 'ruminations', 'somatic complaints', 'other'] }
+        ],
+        'Affect': [
+            { id: 'a-mood-reported', label: 'Reported Mood', options: ['euthymic', 'stable', 'dysthymic', 'dysphoric', 'sad', 'depressed', 'apatetic', 'languishing', 'anxious', 'tense', 'irritable', 'angry', 'elevated', 'euphoric', 'other'] },
+            { id: 'a-affect', label: 'Affect Style', options: ['appropriate', 'euthymic', 'broad', 'constricted', 'restricted', 'flat', 'blunted', 'labile', 'other'] },
+            // Congruence radio buttons are added manually inside the tab content
+        ],
+        'Cognition': [ // Includes Orientation (Checkboxes) + Psychosis (Dropdowns)
+            { id: 'a-psychosis-status', label: 'Psychotic Status (Status/History)', options: ['Not Endorsed', 'Endorsed (Active)', 'Endorsed (Historical)', 'other']},
+            { id: 'a-hallucination-type', label: 'Hallucination Type', options: [
+                'None Reported', 'Auditory (Simple)', 'Auditory (Command)', 'Auditory (Voices)', 
+                'Visual (Simple)', 'Visual (Complex)', 'Tactile (Formication)', 'Gustatory', 
+                'Olfactory', 'Somatic', 'other'
+            ]},
+            { id: 'a-delusion-type', label: 'Delusion Type', options: [
+                'None Reported', 'Persecutory', 'Grandiose', 'Somatic', 'Jealous', 
+                'Erotomanic', 'Referential', 'Nihilistic', 'Religious', 'Guilt/Sin', 
+                'Control (Thought Broadcasting/Insertion/Withdrawal)', 'other'
+            ]},
+        ],
+        'Insight': [ // Includes Memory/Concentration
+            { id: 'a-memory', label: 'Memory', options: ['intact', 'mildly impaired', 'severely impaired', 'other'] },
+            { id: 'a-concentration', label: 'Concentration/Attention', options: ['intact', 'distractible', 'poor', 'hyper-vigilant', 'other'] },
+            { id: 'a-insight', label: 'Insight / Judgment', options: ['good', 'fair', 'limited', 'poor', 'other'] },
+        ]
+    };
+    
+    // --- Data Structure for Risk Assessment (NEW - Level tab added) ---
+    const riskData = {
+         'Level': {
+            title: 'Overall Risk Level',
+            name: 'risk_level_radio', 
+            isProtective: false, 
+            radioOptions: [ // Use this special field for radio buttons
+                { value: 'low risk', label: 'Low', checked: true },
+                { value: 'moderate risk, requiring safety plan review', label: 'Moderate' },
+                { value: 'high risk, requiring immediate intervention', label: 'High' }
+            ]
+        },
+        'Violence': {
+            title: '1. Self/Other Directed Violence',
+            name: 'risk_domain_1',
+            isProtective: false,
+            options: [
+                'suicidal ideation (SI)',
+                'homicidal ideation (HI)',
+                'self-harm behaviors (SH)',
+                'history of violence or aggression'
+            ]
+        },
+        'Instability': {
+            title: '2. Acute Instability',
+            name: 'risk_domain_2',
+            isProtective: false,
+            options: [
+                'active substance misuse',
+                'symptoms of psychosis/hallucinations',
+                'recent psychiatric hospitalization',
+                'significant functional decline'
+            ]
+        },
+        'Safety': {
+            title: '3. Safety/Environmental',
+            name: 'risk_domain_3',
+            isProtective: false,
+            options: [
+                'unstable housing/homelessness',
+                'current victimization/abuse',
+                'severe cognitive impairment/dementia',
+                'lack of social support'
+            ]
+        },
+        'Protective': {
+            title: '4. Mitigating/Protective Factors',
+            name: 'risk_protective',
+            isProtective: true, // Used for styling (like the light green background)
+            options: [
+                'strong social support system', 'engagement in treatment', 'strong therapeutic alliance', 
+                'hope for the future', 'future orientation', 'effective coping skills in use', 
+                'religious or spiritual beliefs', 'responsibility to family or pets', 'positive problem solving skills', 
+                'stable employment or education', 'perceived access to care', 'strong reasons for living'
+            ]
+        }
+    };
+
+    // --- Core Functions ---
+
+    /* Populates the date-time field with the current local date and time. */
+    function autoPopulateDateTime() {
+        // Set next-date to one week later
+        const now = new Date();
+        const nextWeek = new Date(now);
+        nextWeek.setDate(now.getDate() + 14); 
+        const nextDateIsoString = nextWeek.toISOString().slice(0, 10);
+        document.getElementById('next-date').value = nextDateIsoString;
+        
+        // Also call generateSOAPNote once on load with default values
+        generateSOAPNote();
+    }
+
+    /** Switches the active tab in the modality selector (used for Modality, MSE, and Risk). */
+    function switchTab(selectorId, target) {
+        document.querySelectorAll(`#${selectorId} .tab-selector button`).forEach(btn => btn.classList.remove('active'));
+        document.querySelectorAll(`#${selectorId} .tab-content`).forEach(content => content.classList.remove('active'));
+
+        document.querySelector(`#${selectorId} .tab-selector button[data-target="${target}"]`).classList.add('active');
+        document.getElementById(`content-${target}`).classList.add('active');
+    }
+
+    /** Creates the modality tabs and content dynamically, including the "Other" field. */
+    function createModalityTabs() {
+        const tabsContainer = document.getElementById('modality-tabs');
+        const contentContainer = document.getElementById('modality-content');
+        let isFirst = true;
+        
+        // Clear existing content
+        tabsContainer.innerHTML = '';
+        contentContainer.innerHTML = ''; 
+
+        for (const [modality, techniques] of Object.entries(modalityData)) {
+            // Create Tab Button
+            const button = document.createElement('button');
+            button.textContent = modality;
+            button.setAttribute('data-target', modality);
+            if (isFirst) {
+                button.classList.add('active');
+            }
+            // Add click listener that regenerates the note
+            button.addEventListener('click', () => {
+                 switchTab('modality-selector', modality);
+                 generateSOAPNote();
+            });
+            tabsContainer.appendChild(button);
+
+            // Create Tab Content Div
+            const contentDiv = document.createElement('div');
+            contentDiv.id = `content-${modality}`;
+            contentDiv.classList.add('tab-content');
+            if (isFirst) {
+                contentDiv.classList.add('active');
+            }
+            
+            // Create Checkboxes inside the content div
+            const grid = document.createElement('div');
+            grid.classList.add('modality-grid');
+            
+            techniques.forEach(technique => {
+                const isOther = technique === OTHER_TECHNIQUE_PLACEHOLDER;
+                
+                const label = document.createElement('label');
+                label.style.marginBottom = isOther ? '0' : 'unset';
+
+                if (isOther) {
+                    // --- Handle Other (Specify) ---
+                    const otherCheckboxId = `tech-${modality}-other`;
+                    // The value needs to be unique for the document and match what we search for in generateSOAPNote
+                    label.innerHTML = `<input type="checkbox" value="${modality}_other" name="technique" id="${otherCheckboxId}"> Other (Specify)`;
+                    
+                    const otherInput = document.createElement('input');
+                    otherInput.type = 'text';
+                    otherInput.id = `other-tech-input-${modality}`;
+                    otherInput.placeholder = `Specify custom ${modality} technique...`;
+                    otherInput.style.display = 'none';
+
+                    const otherCheckbox = label.querySelector(`#${otherCheckboxId}`);
+                    
+                    const updateAndToggle = (e) => {
+                        otherInput.style.display = e.target.checked ? 'block' : 'none';
+                        generateSOAPNote();
+                    };
+                    
+                    otherCheckbox.addEventListener('change', updateAndToggle);
+                    
+                    grid.appendChild(label);
+                    grid.appendChild(otherInput);
+
+                } else {
+                    // --- Handle Standard Technique ---
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = 'technique';
+                    checkbox.value = technique; // The value is the technique name itself
+                    
+                    // The live generation handler on 'input-panes' will catch the change event
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(technique));
+                    grid.appendChild(label);
+                }
+            });
+
+            contentDiv.appendChild(grid);
+            contentContainer.appendChild(contentDiv);
+            isFirst = false;
+        }
+    }
+
+    /** Creates the MSE tabs and content dynamically, including 'other' handlers for dropdowns. */
+    function createMSETabs() {
+        const tabsContainer = document.getElementById('mse-tabs');
+        const contentContainer = document.getElementById('mse-content');
+        let isFirst = true;
+
+        // Clear existing content
+        tabsContainer.innerHTML = '';
+        contentContainer.innerHTML = '';
+
+        for (const [groupName, fields] of Object.entries(mseData)) {
+            // Create Tab Button
+            const slug = groupName.toLowerCase(); 
+            const button = document.createElement('button');
+            button.textContent = groupName;
+            button.setAttribute('data-target', slug);
+            if (isFirst) {
+                button.classList.add('active');
+            }
+            // Add click listener that regenerates the note
+            button.addEventListener('click', () => {
+                switchTab('mse-selector', slug);
+                generateSOAPNote();
+            });
+            tabsContainer.appendChild(button);
+
+            // Create Tab Content Div
+            const contentDiv = document.createElement('div');
+            contentDiv.id = `content-${slug}`;
+            contentDiv.classList.add('tab-content');
+            if (isFirst) {
+                contentDiv.classList.add('active');
+            }
+            
+            // Create the grid for dropdowns
+            const grid = document.createElement('div');
+            grid.classList.add('mse-content-grid');
+            
+            // Manually add the Orientation Checkboxes for the 'Cognition' tab
+            if (groupName === 'Cognition') {
+                 const orientationGroup = document.createElement('div');
+                 orientationGroup.classList.add('input-group');
+                 orientationGroup.innerHTML = `
+                    <label>Orientation (A/O x)</label>
+                    <div class="orientation-options">
+                        <label class="radio-option-label"><input type="checkbox" name="a-orientation" value="Person" checked> Person</label>
+                        <label class="radio-option-label"><input type="checkbox" name="a-orientation" value="Place" checked> Place</label>
+                        <label class="radio-option-label"><input type="checkbox" name="a-orientation" value="Time" checked> Time</label>
+                        <label class="radio-option-label"><input type="checkbox" name="a-orientation" value="Situation"> Situation</label>
+                    </div>
+                 `;
+                 // The live generation handler on 'input-panes' will catch the change event
+                 grid.prepend(orientationGroup); 
+            }
+
+            fields.forEach(field => {
+                const inputGroup = document.createElement('div');
+                inputGroup.classList.add('input-group');
+
+                // Label
+                const label = document.createElement('label');
+                label.setAttribute('for', field.id);
+                label.textContent = field.label;
+                inputGroup.appendChild(label);
+
+                // Select Dropdown
+                const select = document.createElement('select');
+                select.id = field.id;
+                
+                // Add an event listener to handle the 'other' input field if applicable
+                // Note: The live generation handler on 'input-panes' catches the 'change' event on the select
+                if (field.options.includes('other')) {
+                    select.setAttribute('onchange', `handleOtherOption('${field.id}')`);
+                }
+
+                field.options.forEach((optionText, index) => {
+                    const option = document.createElement('option');
+                    // Set the appropriate default (WNL, None Reported, etc.)
+                    if (index === 0 && (field.id === 'a-hallucination-type' || field.id === 'a-delusion-type')) {
+                         option.setAttribute('selected', 'selected');
+                    }
+                    option.value = optionText;
+                    option.textContent = optionText;
+                    select.appendChild(option);
+                });
+                
+                inputGroup.appendChild(select);
+                grid.appendChild(inputGroup);
+                
+                // Add the 'Other' input field container for this dropdown if it has an 'other' option
+                if (field.options.includes('other')) {
+                     const otherContainer = document.createElement('div');
+                     otherContainer.id = `other-${field.id}-container`;
+                     otherContainer.classList.add('input-group', 'other-input-container');
+                     otherContainer.innerHTML = `
+                        <label for="other-${field.id}-input">Specify ${field.label}</label>
+                        <input type="text" id="other-${field.id}-input" placeholder="Enter custom value...">
+                     `;
+                     // The live generation handler on 'input-panes' catches the 'input' event on this text box
+                     inputGroup.appendChild(otherContainer);
+                     // Add event listener to the custom input to ensure state is checked on load
+                     select.addEventListener('DOMContentLoaded', () => handleOtherOption(field.id));
+                }
+            });
+            
+            // Manually add the Congruence Radio buttons within the Affect tab
+            if (groupName === 'Affect') {
+                 const congruenceGroup = document.createElement('div');
+                 congruenceGroup.classList.add('input-group');
+                 congruenceGroup.innerHTML = `
+                    <label>Congruence</label>
+                    <label class="radio-option-label"><input type="radio"
+                    name="a-congruence" value="congruent" checked>
+                    Congruent (DEFAULT)</label>
+                    <label class="radio-option-label"><input type="radio"
+                    name="a-congruence" value="incongruent">
+                    Incongruent</label>
+                 `;
+                 // The live generation handler on 'input-panes' will catch the change event
+                 grid.appendChild(congruenceGroup);
+            }
+
+            contentDiv.appendChild(grid);
+            contentContainer.appendChild(contentDiv);
+            isFirst = false;
+        }
+    }
+    
+    /** Creates the Risk Assessment tabs and content dynamically. (NEW FUNCTION) */
+    function createRiskTabs() {
+        const tabsContainer = document.getElementById('risk-tabs');
+        const contentContainer = document.getElementById('risk-content');
+        let isFirst = true;
+
+        // Clear existing content
+        tabsContainer.innerHTML = '';
+        contentContainer.innerHTML = ''; 
+
+        for (const [key, data] of Object.entries(riskData)) {
+            const slug = key.toLowerCase(); 
+
+            // 1. Create Tab Button
+            const button = document.createElement('button');
+            button.textContent = key;
+            button.setAttribute('data-target', slug);
+            if (isFirst) {
+                button.classList.add('active');
+            }
+            button.addEventListener('click', () => {
+                switchTab('risk-selector', slug);
+                generateSOAPNote();
+            });
+            tabsContainer.appendChild(button);
+
+            // 2. Create Tab Content Div
+            const contentDiv = document.createElement('div');
+            contentDiv.id = `content-${slug}`;
+            contentDiv.classList.add('tab-content');
+            if (data.isProtective) {
+                // Apply the protective styling to the content div itself
+                contentDiv.classList.add('protective-factors-group'); 
+            }
+            if (isFirst) {
+                contentDiv.classList.add('active');
+            }
+            
+            // 3. Create Content (CHECKBOXES OR RADIO BUTTONS)
+            const title = document.createElement('h4');
+            title.textContent = data.title;
+            contentDiv.appendChild(title);
+            
+            const grid = document.createElement('div');
+            grid.classList.add('options-grid');
+            
+            if (data.radioOptions) {
+                 // --- GENERATE RADIO BUTTONS FOR RISK LEVEL ---
+                data.radioOptions.forEach(option => {
+                    const label = document.createElement('label');
+                    label.classList.add('radio-option-label');
+                    
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'risk-level'; // Use the same name 'risk-level' for getRadioVal()
+                    radio.value = option.value; 
+                    if (option.checked) {
+                        radio.setAttribute('checked', 'checked');
+                    }
+                    
+                    label.appendChild(radio);
+                    label.appendChild(document.createTextNode(` ${option.label}`));
+                    grid.appendChild(label);
+                });
+                
+            } else {
+                 // --- GENERATE CHECKBOXES FOR RISK FACTORS/PROTECTIVE FACTORS ---
+                data.options.forEach(optionText => {
+                    const label = document.createElement('label');
+                    label.classList.add('radio-option-label');
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.name = data.name; // Use the unique name for the risk domain
+                    checkbox.value = optionText; 
+                    
+                    // Capitalize first letter for display
+                    const displayText = optionText.charAt(0).toUpperCase() + optionText.slice(1);
+                    
+                    label.appendChild(checkbox);
+                    label.appendChild(document.createTextNode(` ${displayText}`));
+                    grid.appendChild(label);
+                });
+            }
+
+
+            contentDiv.appendChild(grid);
+            contentContainer.appendChild(contentDiv);
+            isFirst = false;
+        }
+    }
+
+
+    /** Helper function to show/hide the 'Other' text input field for dropdowns. */
+    function handleOtherOption(selectElementId) {
+        const select = document.getElementById(selectElementId);
+        // The container ID is based on the select's ID
+        const otherInputContainer = document.getElementById(`other-${selectElementId}-container`);
+        
+        if (otherInputContainer) {
+            if (select.value === 'other') {
+                otherInputContainer.style.display = 'flex';
+                const otherInput = document.getElementById(`other-${selectElementId}-input`);
+                if (otherInput) {
+                    otherInput.focus();
+                }
+            } else {
+                otherInputContainer.style.display = 'none';
+            }
+        }
+        // Always call generate after handling the dropdown, even if it's the other option
+        generateSOAPNote();
+    }
+    
+    /** Helper function to get the value of a plain text input. */
+    function val(id) {
+        const element = document.getElementById(id);
+        return element ? element.value.trim() : ''; 
+    }
+    
+    /** Helper function to get the value of a dropdown, checking for 'other' override. */
+    function getSelectVal(id) {
+        const selectElement = document.getElementById(id);
+        if (!selectElement) return ''; 
+        let value = selectElement.value.trim();
+
+        if (value === 'other') {
+            const otherInput = document.getElementById(`other-${id}-input`);
+            if (otherInput && otherInput.value.trim() !== '') {
+                return otherInput.value.trim();
+            }
+            // If 'other' is selected but no text is entered, return a placeholder
+            return 'Other [SPECIFY]';
+        }
+        
+        return value; 
+    }
+    
+    /** Helper function to get the value of a checked radio button by name. */
+    function getRadioVal(name) {
+        const radio = document.querySelector(`input[name="${name}"]:checked`);
+        return radio ? radio.value.trim() : '';
+    }
+
+    /** Gets the correct pronouns based on the selected gender/pronoun value. */
+    function getPronouns(genderValue) {
+        // Use the raw selected value (before 'other' override) to determine the pronoun set
+        const selectElement = document.getElementById('gender');
+        const selectValue = selectElement.value;
+        const selectText = selectElement.options[selectElement.selectedIndex].textContent.trim();
+
+        switch (selectValue) {
+            case 'she':
+                // [Subject, Object, Possessive Adjective, Reflexive, Header String]
+                return ['She', 'Her', 'Her', 'Herself', 'Female (She/Her/Hers)'];
+            case 'he':
+                return ['He', 'Him', 'His', 'Himself', 'Male (He/Him/His)'];
+            case 'they':
+                return ['They', 'Them', 'Their', 'Themselves', 'Non-Binary (They/Them/Their)'];
+            case 'other':
+                const customPronounString = getSelectVal('gender');
+                // Attempt to derive the pronoun string from the user's custom input for the header
+                // If the user inputs a full string, use it, otherwise, default to a generic set.
+                if (customPronounString !== 'Other [SPECIFY]') {
+                     return ['The client', 'The client', 'The client\'s', 'Themselves', customPronounString];
+                }
+                // Fallback for empty 'other' input
+                return ['The client', 'The client', 'The client\'s', 'Themselves', selectText.replace(' (Specify)', '')];
+            default:
+                return ['The client', 'The client', 'The client\'s', 'Themselves', selectText];
+        }
+    }
+
+    /** --- MAIN SOAP NOTE GENERATION FUNCTION --- */
+    function generateSOAPNote() {
+        // --- SCRIPT VARIABLES & PRONOUNS ---
+        const dateTimeStr = val('date-time');
+        const clinician = val('clinician-name');
+        const firstName = val('first-name');
+        const lastName = val('last-name');
+        
+        // Use getSelectVal for fields that are dropdowns with 'other' option
+        const sessionLength = getSelectVal('session-length'); 
+        const sessionLocation = getSelectVal('session-location');
+        const apptType = getSelectVal('appt-type');
+        const therapyFrequency = getSelectVal('therapy-frequency'); 
+        const genderPronoun = getSelectVal('gender'); // This is the selected value, not the full string
+
+        // Pronouns: [Subject, Object, Possessive Adjective, Reflexive, Header String]
+        const [pronounSubject, pronounObject, pronounPossessive, pronounReflexive, pronounStringHeader] = getPronouns(genderPronoun);
+
+        const fullName = `${firstName} ${lastName}`;
+        const formattedDate = dateTimeStr
+  ? (() => {
+      const date = new Date(dateTimeStr);
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = date.toLocaleString('en-US', { month: 'short' });
+      const year = date.getFullYear();
+      const time = date.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      return `${day} ${month} ${year}, ${time}`;
+    })()
+  : '[DATE/TIME PENDING]';
+
+
+
+        // --- INPUTS (using val() for text and getSelectVal/getRadioVal for options) ---
+        const subjectiveReport = val('subjective-report');
+        const goalPaste = val('goal-paste');
+        const arrivalTime = val('arrival-time');
+        const sessionContent = val('session-content');
+        const diagnosticImpression = val('diagnostic-impression');
+        const nextTime = val('next-time');
+        const nextDate = val('next-date');
+        // Fix: Replace all newline characters (\r\n or \n) with a single space
+        const rawHomeworkSteps = val('homework-steps');
+        const homeworkSteps = rawHomeworkSteps.replace(/[\r\n]+/g, ' ').trim();
+        const ongoingPlan = val('ongoing-plan');
+
+
+        // --- NEW INTERVENTION LOGIC (O) ---
+        const selectedByModality = {};
+        let miChecked = false;
+
+        for (const [modality, techniques] of Object.entries(modalityData)) {
+            const selectedTechs = [];
+            
+            techniques.forEach(tech => {
+                const isOther = tech === OTHER_TECHNIQUE_PLACEHOLDER;
+                const value = isOther ? `${modality}_other` : tech;
+                
+                // Find the checkbox by name 'technique' and its specific value
+                const checkbox = document.querySelector(`input[name="technique"][value="${value}"]`);
+
+                if (checkbox && checkbox.checked) {
+                    let techniqueName = tech;
+                    if (isOther) {
+                        const customInput = document.getElementById(`other-tech-input-${modality}`);
+                        // Prioritize custom input value, fall back to a generic placeholder if empty
+                        techniqueName = customInput.value.trim();
+                    }
+                    // Only add if it's a valid, non-placeholder technique name
+                    if (techniqueName && techniqueName !== OTHER_TECHNIQUE_PLACEHOLDER && techniqueName.length > 0) {
+                         selectedTechs.push(techniqueName);
+                    }
+                }
+            });
+
+            if (selectedTechs.length > 0) {
+                selectedByModality[modality] = selectedTechs;
+                if (modality === 'MI') {
+                    miChecked = true;
+                }
+            }
+        }
+
+        // Construct the interventions narrative
+        let interventionsNarrative = '';
+
+        for (const [modality, techs] of Object.entries(selectedByModality)) {
+            const joinedTechs = techs.join(', ');
+            
+            let introPhrase = '';
+            // Customize the introduction phrasing based on the user request
+            switch (modality) {
+                case 'MI':
+                    introPhrase = `Motivational Interviewing techniques were used, including ${joinedTechs} to foster rapport and support a strong therapeutic alliance. `;
+                    break;
+                case 'CBT':
+                    introPhrase = `Provided CBT interventions including, ${joinedTechs}.`;
+                    break;
+                case 'ACT':
+                    introPhrase = `Acceptance and Commitment Therapy interventions included ${joinedTechs}.`;
+                    break;
+                case 'SFBT':
+                    introPhrase = `Solution-Focused Brief Therapy (SFBT) approaches were applied, including ${joinedTechs}.`;
+                    break;
+                case 'DBT':
+                    introPhrase = `DBT skills included ${joinedTechs}.`;
+                    break;
+                default:
+                    introPhrase = `${modality} interventions included ${joinedTechs}.`;
+            }
+            
+            // Append the phrase, ensuring a space
+            interventionsNarrative += introPhrase + ' ';
+        }
+        
+        const selectedTechniques = interventionsNarrative.trim() || '[NO SPECIFIC INTERVENTIONS DOCUMENTED]';
+        // --- END INTERVENTION LOGIC ---
+
+
+        // --- STRUCTURED A INPUTS (Dropdowns and Radio Buttons) ---
+        // MSE fields (using getSelectVal to handle 'other')
+        const generalAppearance = getSelectVal('a-general-appearance'); // UPDATED ID
+        const clientBuild = getSelectVal('a-build'); // **NEW FIELD**
+        const attire = getSelectVal('a-attire');                     // NEW VARIABLE
+        const grooming = getSelectVal('a-grooming');
+        const motorActivity = getSelectVal('a-motor');
+        const behavior = getSelectVal('a-behavior');
+        const speech = getSelectVal('a-speech');
+        const thoughtProcess = getSelectVal('a-thought-process');
+        const thoughtContent = getSelectVal('a-thought-content');
+        const moodReported = getSelectVal('a-mood-reported');
+        const affectStyle = getSelectVal('a-affect');
+        const memory = getSelectVal('a-memory');
+        const concentration = getSelectVal('a-concentration');
+        const insightJudgment = getSelectVal('a-insight');
+        const affectCongruence = getRadioVal('a-congruence'); 
+
+        // Psychosis fields (from dropdowns)
+        const psychoticStatus = getSelectVal('a-psychosis-status');
+        const hallucinationType = getSelectVal('a-hallucination-type');
+        const delusionType = getSelectVal('a-delusion-type');
+        
+        // Orientation Logic (from checkboxes)
+        const endorsedOrientation = Array.from(document.querySelectorAll('input[name="a-orientation"]:checked'))
+            .map(cb => cb.value);
+        const orientationScore = endorsedOrientation.length;
+        const orientationText = endorsedOrientation.length > 0 ? endorsedOrientation.join(', ') : 'None';
+        const orientationPhrase = `AOx${orientationScore} (${orientationText})`; // e.g., AOx3 (Person, Place, Time)
+
+
+        // Psychotic symptom detail for the paragraph
+        let psychoticDetailPhrase = '';
+        if (psychoticStatus === 'Not Endorsed') {
+            psychoticDetailPhrase = 'There was no endorsement or observation of acute psychotic symptoms.';
+        } else {
+             // Combine the hallucination and delusion type details
+            const psychSymptoms = [];
+            if (hallucinationType !== 'None Reported' && hallucinationType.indexOf('[SPECIFY]') === -1) {
+                psychSymptoms.push(`hallucinations (type: ${hallucinationType})`);
+            }
+            if (delusionType !== 'None Reported' && delusionType.indexOf('[SPECIFY]') === -1) {
+                psychSymptoms.push(`delusions (type: ${delusionType})`);
+            }
+            
+            if (psychSymptoms.length > 0) {
+                 psychoticDetailPhrase = `The client is in an ${psychoticStatus.toLowerCase()} state, endorsing ${psychSymptoms.join(' and ')}.`;
+            } else {
+                 psychoticDetailPhrase = `The client is in an ${psychoticStatus.toLowerCase()} state, but specific psychotic symptom type was not detailed.`;
+            }
+        }
+        
+        // --- RISK ASSESSMENT (UNCHANGED LOGIC - still checks for the same checkbox names) ---
+        // 'risk-level' is now dynamically generated but uses the same name
+        const overallRisk = getRadioVal('risk-level'); 
+        
+        // 1. Collect Endorsed Risk Factors (Domains 1, 2, 3)
+        const endorsedRiskFactors = [
+            ...Array.from(document.querySelectorAll('input[name="risk_domain_1"]:checked')).map(cb => cb.value),
+            ...Array.from(document.querySelectorAll('input[name="risk_domain_2"]:checked')).map(cb => cb.value),
+            ...Array.from(document.querySelectorAll('input[name="risk_domain_3"]:checked')).map(cb => cb.value)
+        ];
+        
+        let riskFactorSummary = '';
+        if (endorsedRiskFactors.length > 0) {
+            const riskFactorNames = endorsedRiskFactors.join(', ');
+            riskFactorSummary = `The following acute risk factors were endorsed by the client or observed: ${riskFactorNames}.`;
+        } else {
+            riskFactorSummary = `The client did not endorse current suicidal or homicidal ideation, desire, intent, plan, or preparations to kill self or others. Did not endorse any desire to self-harm, and did not report delusions or hallucinations (including command hallucinations). Client did not report current threat from others, housing, or financial instability.`;
+        }
+        
+        // 2. Collect Protective Factors (Domain 4)
+        const protectiveFactors = Array.from(document.querySelectorAll('input[name="risk_protective"]:checked'))
+            .map(cb => cb.value);
+            
+        let protectiveFactorSummary = '';
+        if (protectiveFactors.length > 0) {
+            const protectiveFactorNames = protectiveFactors.join('; ');
+            protectiveFactorSummary = ` Protective factors include: ${protectiveFactorNames}.`;
+        } else {
+             protectiveFactorSummary = ` No specific protective factors were documented at this time.`;
+        }
+
+
+        // --- NOTE CONSTRUCTION (CUSTOM ORDER: HEADER, GOAL, S, O, A, P, RISK) ---
+        
+        // 1. Construct the NEW Header
+        const dxImpression = diagnosticImpression || '[DIAGNOSIS PENDING]';
+        
+        let header = `CLIENT: ${fullName || '[CLIENT NAME]'}
+PRONOUNS: ${pronounStringHeader || '[PRONOUNS PENDING]'}
+DATE/TIME: ${formattedDate}
+DURATION: ${sessionLength}
+------------------------------
+\n`; 
+        
+        // 2. Start the note with the new header
+        let note = header;
+        // Removed redundant DATE/TIME line that followed the old header.
+
+        // 3. GOAL (Only pasted text, no extra phrasing)
+        note += `Goal: ${goalPaste.split('\n').map(line => line.trim()).filter(line => line.length > 0).join('; ')}. \n\n`;
+
+        // 4. S: Subjective (Paragraph)
+        note += `S: Client reported, ${subjectiveReport || '[INSERT CLIENT SUBJECTIVE REPORT/QUOTE]'} \n\n`;
+
+        // 5. O: Objective
+        note += `O: Client arrived at ${arrivalTime || '[TIME]'} to a ${sessionLength}, ${sessionLocation} appointment. ${selectedTechniques} ${sessionContent.replace(/Jane Doe/g, fullName).replace(/Jane/g, firstName).replace(/Doe/g, lastName) || ''} \n\n`;
+
+
+        // 6. A: Assessment (Structured per user request - Discrete sentences)
+        let moodAffectPhrase = `${pronounPossessive} affect was ${affectStyle} and ${affectCongruence} to ${pronounPossessive.toLowerCase()} reported ${moodReported} mood.`;
+        
+        // UPDATED A-SECTION PHRASING to include the new Build/Nourishment variable
+        let aContent = `A: Client appeared ${generalAppearance} and ${clientBuild}. Attire was ${attire}. Grooming was ${grooming}. ${pronounPossessive} motor activity was ${motorActivity}. ${pronounSubject} appeared ${behavior} during the session. Speech was ${speech}. Thought process was ${thoughtProcess}. Thought content showed ${thoughtContent}. ${moodAffectPhrase} ${pronounSubject} was ${orientationPhrase}. Memory appeared ${memory}, and concentration appeared ${concentration}. ${psychoticDetailPhrase} ${pronounSubject} exhibited ${insightJudgment} insight and judgment. Client's presentation is consistent with ${dxImpression}.`;
+        
+        // Clean up whitespace
+        aContent = aContent.replace(/\s+/g, ' ').trim();
+        note += `${aContent} \n\n`;
+
+
+        // 7. P: Plan (Updated phrasing to use the Ongoing Therapy Plan field)
+        const nextApptDate = val('next-date')
+  ? (() => {
+      const [year, month, day] = val('next-date').split('-').map(Number);
+      const date = new Date(year, month - 1, day); // month is 0-based
+      const formatted = `${day.toString().padStart(2, '0')} ${date.toLocaleString('en-US', { month: 'short' })} ${year}`;
+      return formatted;
+    })()
+  : '[PENDING/NOT SCHEDULED]';
+
+
+        // Now using Ongoing Plan for the focus since the dedicated field was removed.
+        const focusForPlan = ongoingPlan || '[ONGOING THERAPY PLAN / NEXT SESSION FOCUS]';
+        
+        let planText = `P: Continue ${therapyFrequency} therapy. Client is scheduled for a ${apptType} on ${nextApptDate} at ${nextTime || '[TIME]'}. The next session will focus on ${focusForPlan}.`;
+        
+        if (homeworkSteps) {
+            planText += ` ${pronounPossessive} homework includes ${homeworkSteps}.`; 
+        }
+        note += `${planText} \n\n`;
+        
+        
+        // 8. RISK: Assessment
+        let riskText = `Risk: The client is currently assessed as ${overallRisk}. ${riskFactorSummary} ${protectiveFactorSummary}`;
+        note += `${riskText} \n\n`;
+        
+
+        document.getElementById('output-text').value = note;
+        updateCopyButtonText(false);
+    }
+    
+    /** Copies the generated note to the clipboard. */
+    function copyNote() {
+        const outputTextarea = document.getElementById('output-text');
+        if (outputTextarea.value.trim() === '') {
+            alert("Please ensure the SOAP Note has been generated before trying to copy it.");
+            return;
+        }
+        outputTextarea.select();
+        document.execCommand('copy');
+        updateCopyButtonText(true);
+    }
+
+    /** Updates the Copy button text temporarily on successful copy. */
+    function updateCopyButtonText(copied) {
+        const copyButton = document.getElementById('copy-button');
+        if (copied) {
+            const originalText = copyButton.innerHTML;
+            copyButton.innerHTML = 'Copied!';
+            setTimeout(() => {
+                copyButton.innerHTML = originalText;
+            }, 2000);
+        } else {
+            copyButton.innerHTML = 'Copy to Clipboard';
+        }
+    }
+
+    // --- New Theme Toggle Functions ---
+    function toggleTheme() {
+        const body = document.body;
+        body.classList.toggle('gruvbox-theme');
+        const isDark = body.classList.contains('gruvbox-theme');
+        localStorage.setItem('theme', isDark ? 'gruvbox-theme' : 'light');
+    }
+
+    function loadTheme() {
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'gruvbox-theme') {
+            document.body.classList.add('gruvbox-theme');
+        }
+    }
+
+    /** --- EXPORT PROGRESS --- */
+    function exportProgress() {
+        const data = {};
+        
+        // 1. Collect all standard inputs and textareas
+        const inputs = document.querySelectorAll('input[type="text"], input[type="number"], input[type="datetime-local"], input[type="date"], input[type="time"], textarea, select');
+        inputs.forEach(input => {
+            if (input.id) data[input.id] = input.value;
+        });
+
+        // 2. Collect all Checkboxes and Radios
+        const checkboxes = document.querySelectorAll('input[type="checkbox"], input[type="radio"]');
+        data.checkboxes = Array.from(checkboxes).map(cb => ({
+            id: cb.id,
+            name: cb.name,
+            value: cb.value,
+            checked: cb.checked
+        }));
+
+        // Create the file and trigger download
+        const fileName = `SOAP_Progress_${data['first-name'] || 'Client'}_${new Date().toISOString().slice(0, 10)}.json`;
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
+    }
+
+    /** --- IMPORT PROGRESS --- */
+    function importProgress(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = JSON.parse(e.target.result);
+
+                // 1. Restore standard inputs
+                Object.keys(data).forEach(key => {
+                    const el = document.getElementById(key);
+                    if (el && key !== 'checkboxes') {
+                        el.value = data[key];
+                    }
+                });
+
+                // 2. Restore Checkboxes and Radios
+                if (data.checkboxes) {
+                    data.checkboxes.forEach(item => {
+                        // Try finding by ID first, then by name/value combo for dynamic fields
+                        let cb = document.getElementById(item.id);
+                        if (!cb && item.name) {
+                            cb = document.querySelector(`input[name="${item.name}"][value="${item.value}"]`);
+                        }
+                        if (cb) cb.checked = item.checked;
+                    });
+                }
+
+                // 3. Refresh UI Logic
+                // Manually trigger "Other" field visibility checks
+                handleOtherOption('gender');
+                handleOtherOption('session-length');
+                handleOtherOption('session-location');
+                handleOtherOption('appt-type');
+                handleOtherOption('therapy-frequency');
+                
+                // Re-generate the note to reflect loaded data
+                generateSOAPNote();
+                alert('Progress loaded successfully!');
+                
+            } catch (err) {
+                console.error(err);
+                alert('Error loading file. Please ensure it is a valid SOAP progress JSON.');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // --- Event Listeners and Initialization ---
+    document.addEventListener('DOMContentLoaded', () => {
+        // Load theme first so UI doesn't flash
+        loadTheme();
+        // --- ADD TO YOUR DOMContentLoaded LISTENER ---
+        // Add these lines inside your document.addEventListener('DOMContentLoaded', () => { ... });
+        document.getElementById('export-button').addEventListener('click', exportProgress);
+        document.getElementById('import-button').addEventListener('click', () => document.getElementById('import-file').click());
+        document.getElementById('import-file').addEventListener('change', importProgress);        
+        
+        autoPopulateDateTime();
+        createModalityTabs();
+        createMSETabs(); 
+        createRiskTabs(); // NEW: Initialize Risk tabs
+
+        // Initial tab activation for Modality
+        if (document.querySelector('#modality-tabs button')) {
+            switchTab('modality-selector', document.querySelector('#modality-tabs button').getAttribute('data-target'));
+        }
+        // Initial tab activation for MSE
+        if (document.querySelector('#mse-tabs button')) {
+            switchTab('mse-selector', document.querySelector('#mse-tabs button').getAttribute('data-target'));
+        }
+        // Initial tab activation for Risk (NEW)
+        if (document.querySelector('#risk-tabs button')) {
+            // Set the first tab (which is now 'Level') to active
+            switchTab('risk-selector', document.querySelector('#risk-tabs button').getAttribute('data-target'));
+        }
+
+        // --- Live Generation Event Listener ---
+        // Attach event listener to the entire input-panes section for change/input events
+        const inputPanes = document.getElementById('input-panes');
+        if (inputPanes) {
+            // Listen for changes (dropdowns, checkboxes, radios, dates) and input (typing in text fields)
+            inputPanes.addEventListener('change', generateSOAPNote);
+            inputPanes.addEventListener('input', generateSOAPNote);
+        }
+
+        document.getElementById('copy-button').addEventListener('click', copyNote);
+        document.getElementById('theme-toggle-button').addEventListener('click', toggleTheme);
+        
+        // Initialize listeners for the 'other' select options for display state (for manually defined 'other' fields)
+        handleOtherOption('gender');
+        handleOtherOption('session-length');
+        handleOtherOption('session-location');
+        handleOtherOption('appt-type');
+        handleOtherOption('therapy-frequency'); 
+        
+        // Initialize listeners for 'other' select options in dynamically created MSE fields
+        Object.values(mseData).forEach(fields => {
+            fields.forEach(field => {
+                 if (field.options.includes('other')) {
+                    handleOtherOption(field.id);
+                }
+            });
+        });
+        
+        // Final call to ensure note is populated with initial values
+        generateSOAPNote();
+    });
+
+</script>
+</body>
+</html>
